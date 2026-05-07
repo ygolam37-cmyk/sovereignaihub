@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { useServerFn } from "@tanstack/react-start";
-import { askSovereign } from "@/server/ai.functions";
+import { askSovereign } from "@/lib/ai.functions";
 import { toast } from "sonner";
 import { Shield, Send, LogOut, Sparkles } from "lucide-react";
 
