@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
+import { GoogleButton } from "@/components/GoogleButton";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/signup")({
@@ -41,7 +42,13 @@ function Signup() {
         <div className="glass rounded-2xl p-8 shadow-elegant">
           <h1 className="font-display text-3xl">Create your account</h1>
           <p className="mt-1 text-sm text-muted-foreground">Your credentials are stored only in our private database.</p>
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          <div className="mt-6">
+            <GoogleButton label="Sign up with Google" />
+            <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+              <span className="h-px flex-1 bg-border/60" /> or <span className="h-px flex-1 bg-border/60" />
+            </div>
+          </div>
+          <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
