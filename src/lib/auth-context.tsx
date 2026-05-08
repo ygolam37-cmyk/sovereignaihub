@@ -20,10 +20,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      import("@/integrations/supabase/server-fn-fetch.client").then((m) =>
-        m.installServerFnAuthFetch(),
-      );
+      const authFetchFlag = "__sovereignAuthFetchInstalled";
+      const windowWithFlag = window as typeof window & {
+        [authFetchFlag]?: boolean;
+      };
+
+      if (!windowWithFlag[authFetchFlag]) {
+        windowWithFlag[authFetchFlag] = true;
+        const originalFetch = window.fetch.bind(window);
+
+        window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+          try {
+            const url =
+              typeof input === "string"
+                ? input
+                : input instanceof URL
+                  ? input.toString()
+                  : input.url;
+
+            if (url.includes("/_serverFn/")) {
+              const { data } = await supabase.auth.getSession();
+              const token = data.session?.access_token;
+
+              if (token) {
+                const headers = new Headers(
+                  init?.headers ?? (input instanceof Request ? input.headers : undefined),
+                );
+
+                if (!headers.has("authorization")) {
+                  headers.set("authorization", `Bearer ${token}`);
+                }
+
+                return originalFetch(input, { ...init, headers });
+              }
+            }
+          } catch {
+            // fall through to original fetch
+          }
+
+          return originalFetch(input, init);
+        };
+      }
     }
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setUser(s?.user ?? null);
