@@ -8,10 +8,10 @@ const SYSTEM_PROMPT =
   "You are Sovereign — a private AI assistant. Be concise, clear, and helpful. Never ask the user for personal information.";
 
 const MODEL_CANDIDATES: Record<Lane, string[]> = {
-  fast: ["Qwen/Qwen2.5-7B-Instruct-1M", "zai-org/GLM-4.5"],
-  reasoning: ["deepseek-ai/DeepSeek-R1", "Qwen/Qwen3-4B-Thinking-2507", "Qwen/Qwen2.5-7B-Instruct-1M"],
-  code: ["Qwen/Qwen2.5-Coder-32B-Instruct", "Qwen/Qwen2.5-7B-Instruct-1M"],
-  creative: ["zai-org/GLM-4.5", "Qwen/Qwen2.5-7B-Instruct-1M"],
+  fast: ["openai/gpt-oss-120b:scaleway", "moonshotai/Kimi-K2.5:fireworks-ai"],
+  reasoning: ["deepseek-ai/DeepSeek-R1:novita", "openai/gpt-oss-120b:scaleway"],
+  code: ["openai/gpt-oss-120b:scaleway", "deepseek-ai/DeepSeek-R1:novita"],
+  creative: ["moonshotai/Kimi-K2.5:fireworks-ai", "openai/gpt-oss-120b:scaleway"],
 };
 
 function routePrompt(prompt: string): Lane {
