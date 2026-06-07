@@ -108,6 +108,23 @@ function Dashboard() {
                   </div>
                 )}
                 {m.content}
+                {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+                  <div className="mt-3 space-y-1 border-t border-border/40 pt-2">
+                    <div className="text-[10px] uppercase tracking-wider text-gold/80">Live sources</div>
+                    {m.sources.map((s, idx) => (
+                      <a
+                        key={idx}
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start gap-1 text-[11px] text-muted-foreground hover:text-gold"
+                      >
+                        <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
+                        <span className="truncate">[{idx + 1}] {s.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
