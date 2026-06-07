@@ -47,7 +47,10 @@ function Dashboard() {
     try {
       const res = await ask({ data: { prompt } });
       if (res.ok) {
-        setMessages((m) => [...m, { role: "assistant", content: res.text || "(no response)", lane: res.lane }]);
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: res.text || "(no response)", lane: res.lane, sources: res.sources },
+        ]);
       } else {
         toast.error(res.error);
       }
