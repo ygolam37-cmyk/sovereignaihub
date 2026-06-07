@@ -39,11 +39,54 @@ function unwrapDdgRedirect(href: string): string {
   }
 }
 
+// In-isolate cache. Workers recycle, so this is best-effort — good for repeated
+// queries inside one warm instance, not a durable store.
+type CacheEntry = { hits: SearchHit[]; expiresAt: number };
+const CACHE = new Map<string, CacheEntry>();
+const CACHE_MAX = 200;
+
+// Per-query TTL. Time-sensitive intents expire fast; evergreen lookups linger.
+const FRESH_INTENT = /\b(today|tonight|now|current|latest|news|breaking|live|price|stock|score|weather)\b/i;
+function ttlFor(query: string): number {
+  if (FRESH_INTENT.test(query)) return 60_000;        // 1 min
+  if (/\b(20\d{2})\b/.test(query)) return 5 * 60_000; // 5 min for year refs
+  return 30 * 60_000;                                  // 30 min default
+}
+
+function cacheKey(query: string, limit: number): string {
+  return `${limit}:${query.trim().toLowerCase().replace(/\s+/g, " ")}`;
+}
+
+function readCache(key: string): SearchHit[] | null {
+  const entry = CACHE.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    CACHE.delete(key);
+    return null;
+  }
+  // Refresh LRU position.
+  CACHE.delete(key);
+  CACHE.set(key, entry);
+  return entry.hits;
+}
+
+function writeCache(key: string, hits: SearchHit[], ttlMs: number): void {
+  if (CACHE.size >= CACHE_MAX) {
+    const oldest = CACHE.keys().next().value;
+    if (oldest !== undefined) CACHE.delete(oldest);
+  }
+  CACHE.set(key, { hits, expiresAt: Date.now() + ttlMs });
+}
+
 export async function searchDuckDuckGo(
   query: string,
   limit = 5,
   timeoutMs = 6000,
 ): Promise<SearchHit[]> {
+  const key = cacheKey(query, limit);
+  const cached = readCache(key);
+  if (cached) return cached;
+
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -70,6 +113,7 @@ export async function searchDuckDuckGo(
       const snippet = stripTags(m[3]);
       if (url && title) hits.push({ title, url, snippet });
     }
+    if (hits.length > 0) writeCache(key, hits, ttlFor(query));
     return hits;
   } catch {
     return [];
@@ -77,3 +121,4 @@ export async function searchDuckDuckGo(
     clearTimeout(t);
   }
 }
+
