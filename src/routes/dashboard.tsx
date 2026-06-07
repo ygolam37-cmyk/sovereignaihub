@@ -1,19 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
+import { NetworkIndicator } from "@/components/NetworkIndicator";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { useServerFn } from "@tanstack/react-start";
 import { askSovereign } from "@/lib/ai.functions";
 import { toast } from "sonner";
-import { Shield, Send, LogOut, Sparkles } from "lucide-react";
+import { Shield, Send, LogOut, Sparkles, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
-type Msg = { role: "user" | "assistant"; content: string; lane?: string };
+type Source = { title: string; url: string; snippet: string };
+type Msg = { role: "user" | "assistant"; content: string; lane?: string; sources?: Source[] };
 
 function Dashboard() {
   const { user, loading, signOut } = useAuth();
@@ -45,7 +47,10 @@ function Dashboard() {
     try {
       const res = await ask({ data: { prompt } });
       if (res.ok) {
-        setMessages((m) => [...m, { role: "assistant", content: res.text || "(no response)", lane: res.lane }]);
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", content: res.text || "(no response)", lane: res.lane, sources: res.sources },
+        ]);
       } else {
         toast.error(res.error);
       }
@@ -63,6 +68,7 @@ function Dashboard() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Logo />
           <div className="flex items-center gap-3">
+            <NetworkIndicator />
             <span className="hidden text-xs text-muted-foreground sm:inline">{user.email}</span>
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="mr-2 h-4 w-4" /> Sign out
@@ -102,6 +108,23 @@ function Dashboard() {
                   </div>
                 )}
                 {m.content}
+                {m.role === "assistant" && m.sources && m.sources.length > 0 && (
+                  <div className="mt-3 space-y-1 border-t border-border/40 pt-2">
+                    <div className="text-[10px] uppercase tracking-wider text-gold/80">Live sources</div>
+                    {m.sources.map((s, idx) => (
+                      <a
+                        key={idx}
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-start gap-1 text-[11px] text-muted-foreground hover:text-gold"
+                      >
+                        <ExternalLink className="mt-0.5 h-3 w-3 shrink-0" />
+                        <span className="truncate">[{idx + 1}] {s.title}</span>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
