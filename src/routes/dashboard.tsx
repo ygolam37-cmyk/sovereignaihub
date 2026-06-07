@@ -1,19 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
+import { NetworkIndicator } from "@/components/NetworkIndicator";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
 import { useServerFn } from "@tanstack/react-start";
 import { askSovereign } from "@/lib/ai.functions";
 import { toast } from "sonner";
-import { Shield, Send, LogOut, Sparkles } from "lucide-react";
+import { Shield, Send, LogOut, Sparkles, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
-type Msg = { role: "user" | "assistant"; content: string; lane?: string };
+type Source = { title: string; url: string; snippet: string };
+type Msg = { role: "user" | "assistant"; content: string; lane?: string; sources?: Source[] };
 
 function Dashboard() {
   const { user, loading, signOut } = useAuth();
