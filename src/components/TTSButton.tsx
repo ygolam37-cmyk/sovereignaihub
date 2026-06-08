@@ -62,6 +62,7 @@ export function TTSButton({ text, className }: TTSButtonProps) {
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
   const activeRef = useRef(false);
   const lastTriggerAtRef = useRef(0);
+  const lastPointerUpAtRef = useRef(0);
 
   useEffect(() => {
     const handleActiveChange = (event: Event) => {
@@ -94,6 +95,13 @@ export function TTSButton({ text, className }: TTSButtonProps) {
     (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
+
+      if (e.type === "click" && Date.now() - lastPointerUpAtRef.current < 800) {
+        return;
+      }
+      if (e.type === "pointerup") {
+        lastPointerUpAtRef.current = Date.now();
+      }
 
       const now = Date.now();
       if (now - lastTriggerAtRef.current < 250) return;
