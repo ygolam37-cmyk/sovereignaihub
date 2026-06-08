@@ -161,6 +161,14 @@ function Dashboard() {
           </div>
         </div>
       </main>
+      <TTSButton
+        getText={() => {
+          for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === "assistant") return messages[i].content;
+          }
+          return "";
+        }}
+      />
     </div>
   );
 }
