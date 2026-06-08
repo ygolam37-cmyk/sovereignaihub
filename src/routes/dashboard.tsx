@@ -103,9 +103,12 @@ function Dashboard() {
                     : "glass"
                 }`}
               >
-                {m.role === "assistant" && m.lane && (
-                  <div className="mb-1 text-[10px] uppercase tracking-wider text-gold/80">
-                    Sovereign · {m.lane} lane
+                {m.role === "assistant" && (
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="text-[10px] uppercase tracking-wider text-gold/80">
+                      Sovereign{m.lane ? ` · ${m.lane} lane` : ""}
+                    </div>
+                    <TTSButton text={m.content} />
                   </div>
                 )}
                 {m.content}
@@ -161,14 +164,6 @@ function Dashboard() {
           </div>
         </div>
       </main>
-      <TTSButton
-        getText={() => {
-          for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].role === "assistant") return messages[i].content;
-          }
-          return "";
-        }}
-      />
     </div>
   );
 }
