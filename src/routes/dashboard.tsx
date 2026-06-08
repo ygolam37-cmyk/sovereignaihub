@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { NetworkIndicator } from "@/components/NetworkIndicator";
+import { TTSButton } from "@/components/TTSButton";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
