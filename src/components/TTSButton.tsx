@@ -12,7 +12,7 @@ const ACTIVE_TTS_EVENT = "sovereign:tts-active";
 function getSpeechEngine() {
   if (typeof window === "undefined") return null;
 
-  const synth = window.speechSynthesis ?? globalThis.speechSynthesis ?? null;
+  const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
   if (!synth || typeof window.SpeechSynthesisUtterance === "undefined") {
     return null;
   }
