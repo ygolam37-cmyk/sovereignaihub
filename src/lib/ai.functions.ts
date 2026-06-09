@@ -17,10 +17,12 @@ function shouldSearch(prompt: string): boolean {
 
 function formatContext(hits: SearchHit[]): string {
   if (!hits.length) return "";
-  const lines = hits.map(
-    (h, i) => `[${i + 1}] ${h.title}\n${h.snippet}\nSource: ${h.url}`,
-  );
-  return `Real-time web context (DuckDuckGo, ${new Date().toUTCString()}):\n${lines.join("\n\n")}\n\nUse the context above when relevant. Cite sources as [1], [2], etc.`;
+  const lines = hits.map((h, i) => {
+    const when = h.publishedAt ? ` (published ${h.publishedAt})` : "";
+    const src = h.source ? ` [${h.source}]` : "";
+    return `[${i + 1}] ${h.title}${when}${src}\n${h.snippet}\nSource: ${h.url}`;
+  });
+  return `Real-time open-source web context (multi-engine, system time ${new Date().toISOString()}):\n${lines.join("\n\n")}\n\nPrioritize the most recent items. Cite sources as [1], [2], etc.`;
 }
 
 export const askSovereign = createServerFn({ method: "POST" })
