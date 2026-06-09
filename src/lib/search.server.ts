@@ -267,10 +267,94 @@ export async function searchDuckDuckGo(
     }
   }
 
+  // Raw Web Crawler fallback — direct HTTP fetch of public RSS / headline
+  // pages when every search engine returned nothing.
+  if (!collected.length) {
+    try {
+      const raw = await rawWebCrawlerFallback(stamped, limit, isNews);
+      if (raw.length) collected = collected.concat(raw);
+    } catch {
+      // give up silently; caller handles empty list
+    }
+  }
+
   let final = dedupe(collected);
-  if (isNews) final = sortByRecency(final);
+  if (isNews || final.some((h) => h.publishedAt)) final = sortByRecency(final);
   final = final.slice(0, limit);
 
   if (final.length) writeCache(key, final, ttlFor(query));
   return final;
+}
+
+// ---------- Raw Web Crawler fallback ----------
+// Directly fetches well-known public RSS / headline pages over HTTP, parses
+// them, normalizes into SearchHit, filters by query relevance, and ranks by
+// publish time. No search engine, no API key.
+
+const RAW_NEWS_FEEDS: Array<{ url: string; source: string }> = [
+  { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "bbc" },
+  { url: "https://feeds.reuters.com/reuters/topNews", source: "reuters" },
+  { url: "http://rss.cnn.com/rss/edition.rss", source: "cnn" },
+  { url: "https://feeds.npr.org/1001/rss.xml", source: "npr" },
+  { url: "https://www.aljazeera.com/xml/rss/all.xml", source: "aljazeera" },
+  { url: "https://www.theguardian.com/world/rss", source: "guardian" },
+  { url: "https://feeds.arstechnica.com/arstechnica/index", source: "arstechnica" },
+  { url: "https://hnrss.org/frontpage", source: "hackernews" },
+];
+
+const RAW_GENERIC_FEEDS: Array<{ url: string; source: string }> = [
+  { url: "https://hnrss.org/frontpage", source: "hackernews" },
+  { url: "https://www.reddit.com/.rss", source: "reddit" },
+];
+
+function tokenize(q: string): string[] {
+  return q
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 2);
+}
+
+function scoreHit(hit: SearchHit, tokens: string[]): number {
+  if (!tokens.length) return 1;
+  const hay = `${hit.title} ${hit.snippet}`.toLowerCase();
+  let s = 0;
+  for (const t of tokens) if (hay.includes(t)) s += 1;
+  return s;
+}
+
+async function rawWebCrawlerFallback(
+  query: string,
+  limit: number,
+  isNews: boolean,
+): Promise<SearchHit[]> {
+  const feeds = isNews ? RAW_NEWS_FEEDS : RAW_GENERIC_FEEDS;
+  const tokens = tokenize(query);
+
+  const fetched = await Promise.all(
+    feeds.map(async ({ url, source }) => {
+      const res = await fetchWithTimeout(url, { timeoutMs: 5000 });
+      if (!res || !res.ok) return [] as SearchHit[];
+      const xml = await res.text();
+      return parseRss(xml, 25, source);
+    }),
+  );
+
+  const all = fetched.flat();
+  // Filter by query relevance; if nothing matches, fall back to recent headlines.
+  const scored = all
+    .map((h) => ({ h, score: scoreHit(h, tokens) }))
+    .filter((x) => (tokens.length ? x.score > 0 : true));
+
+  const ranked = scored
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const ta = a.h.publishedAt ? Date.parse(a.h.publishedAt) : 0;
+      const tb = b.h.publishedAt ? Date.parse(b.h.publishedAt) : 0;
+      return tb - ta;
+    })
+    .map((x) => x.h);
+
+  const result = ranked.length ? ranked : sortByRecency(all);
+  return result.slice(0, limit);
 }
