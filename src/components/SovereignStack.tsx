@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { checkStackHealth, type ServiceHealth } from "@/lib/health.functions";
 import {
   Server, Brain, Box, Zap, Network, Activity, KeyRound, Shield,
