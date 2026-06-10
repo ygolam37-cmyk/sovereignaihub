@@ -62,6 +62,9 @@ const COOLDOWN_MS = 5 * 60 * 1000; // 5 minute cooldown per service
 export function SovereignStack() {
   const run = useServerFn(checkStackHealth);
   const [health, setHealth] = useState<Record<string, ServiceHealth>>({});
+  const [stackHealth, setStackHealth] = useState<number>(0);
+  const [rawStackHealth, setRawStackHealth] = useState<number>(0);
+  const [counts, setCounts] = useState({ online: 0, degraded: 0, offline: 0 });
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
@@ -118,6 +121,9 @@ export function SovereignStack() {
       if (r.ok) {
         setHealth(r.services);
         setCheckedAt(r.checkedAt);
+        setStackHealth(r.stackHealth);
+        setRawStackHealth(r.rawStackHealth);
+        setCounts(r.counts);
         evaluateAlerts(r.services);
       }
     } catch (e) {
@@ -135,11 +141,9 @@ export function SovereignStack() {
   }, [refresh]);
 
 
-  const statuses = STACK.map((s) => health[s.id]?.status ?? "degraded");
-  const online = statuses.filter((s) => s === "online").length;
-  const degraded = statuses.filter((s) => s === "degraded").length;
-  const offline = statuses.filter((s) => s === "offline").length;
-  const healthPct = Math.round((online / STACK.length) * 100);
+  const { online, degraded, offline } = counts;
+  const healthPct = stackHealth; // composite, policy-aware, smoothed
+
 
   return (
     <section className="space-y-6">
