@@ -170,10 +170,11 @@ export function SovereignStack() {
             </div>
           </div>
           <div className="flex items-center gap-6">
-            <Metric value={`${healthPct}%`} label="Stack health" />
+            <Metric value={`${healthPct}%`} label={`stack_health (raw ${rawStackHealth}%)`} />
             <Metric value={`${online}/${STACK.length}`} label="Online" />
             <Metric value={`${degraded}·${offline}`} label="Degr · Off" />
           </div>
+
         </div>
       </div>
 
