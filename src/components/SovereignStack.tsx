@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import { checkStackHealth, type ServiceHealth } from "@/lib/health.functions";
 import {
   Server, Brain, Box, Zap, Network, Activity, KeyRound, Shield,
@@ -48,12 +49,67 @@ function formatAgo(iso: string, now: number): string {
   return `${Math.floor(diff / 3600)}h ago`;
 }
 
+type AlertState = {
+  badStreak: number;
+  lastAlertAt: number;
+  lastStatus: Status;
+  alerted: boolean;
+};
+
+const UNHEALTHY_RETRIES = 2;       // require N consecutive bad probes
+const COOLDOWN_MS = 5 * 60 * 1000; // 5 minute cooldown per service
+
 export function SovereignStack() {
   const run = useServerFn(checkStackHealth);
   const [health, setHealth] = useState<Record<string, ServiceHealth>>({});
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
+  const alertsRef = useRef<Record<string, AlertState>>({});
+  const firstRunRef = useRef(true);
+
+  const evaluateAlerts = useCallback((next: Record<string, ServiceHealth>) => {
+    const isFirst = firstRunRef.current;
+    firstRunRef.current = false;
+    for (const svc of STACK) {
+      const h = next[svc.id];
+      if (!h) continue;
+      const prev = alertsRef.current[svc.id] ?? {
+        badStreak: 0, lastAlertAt: 0, lastStatus: "online" as Status, alerted: false,
+      };
+      const bad = h.status === "degraded" || h.status === "offline";
+      const badStreak = bad ? prev.badStreak + 1 : 0;
+      let alerted = prev.alerted;
+      let lastAlertAt = prev.lastAlertAt;
+
+      if (!isFirst && bad && badStreak >= UNHEALTHY_RETRIES) {
+        const cooledDown = Date.now() - prev.lastAlertAt > COOLDOWN_MS;
+        if (cooledDown || !prev.alerted) {
+          const fn = h.status === "offline" ? toast.error : toast.warning;
+          fn(`${svc.name} ${h.status}`, {
+            description: h.detail || `${svc.role} probe failing`,
+            id: `stack-alert-${svc.id}`,
+          });
+          lastAlertAt = Date.now();
+          alerted = true;
+        }
+      }
+      if (!bad && prev.alerted) {
+        toast.success(`${svc.name} recovered`, {
+          description: `${svc.role} is back online`,
+          id: `stack-recover-${svc.id}`,
+        });
+        alerted = false;
+      }
+
+      alertsRef.current[svc.id] = {
+        badStreak,
+        lastAlertAt,
+        lastStatus: h.status,
+        alerted,
+      };
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -62,13 +118,14 @@ export function SovereignStack() {
       if (r.ok) {
         setHealth(r.services);
         setCheckedAt(r.checkedAt);
+        evaluateAlerts(r.services);
       }
     } catch (e) {
       console.error("[SovereignStack] health check failed", e);
     } finally {
       setLoading(false);
     }
-  }, [run]);
+  }, [run, evaluateAlerts]);
 
   useEffect(() => {
     refresh();
@@ -76,6 +133,7 @@ export function SovereignStack() {
     const c = setInterval(() => setNow(Date.now()), 1_000);
     return () => { clearInterval(t); clearInterval(c); };
   }, [refresh]);
+
 
   const statuses = STACK.map((s) => health[s.id]?.status ?? "degraded");
   const online = statuses.filter((s) => s === "online").length;
