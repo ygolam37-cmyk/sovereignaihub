@@ -220,11 +220,18 @@ export function SovereignStack() {
                   {h?.detail ?? "Awaiting first probe…"}
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground/70">
-                  <span>{h?.target ?? s.role}</span>
+                  <span className="truncate">{h?.target ?? s.role}</span>
                   <span className="font-mono text-gold/80">
-                    {h?.latencyMs != null ? `${h.latencyMs}ms` : "—"}
+                    {h ? `score ${h.score}` : "—"}{h?.latencyMs != null ? ` · ${h.latencyMs}ms` : ""}
                   </span>
                 </div>
+                {h && (
+                  <div className="mt-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground/60">
+                    <span>ttl {Math.round(h.policy.cacheTtlMs / 1000)}s · retries {h.policy.retries}{h.policy.critical ? " · crit" : ""}</span>
+                    <span>{h.samples} samp</span>
+                  </div>
+                )}
+
               </div>
 
               <div className="mt-3 flex items-end justify-between border-t border-border/40 pt-3">
