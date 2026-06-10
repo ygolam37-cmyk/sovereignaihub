@@ -62,6 +62,9 @@ const COOLDOWN_MS = 5 * 60 * 1000; // 5 minute cooldown per service
 export function SovereignStack() {
   const run = useServerFn(checkStackHealth);
   const [health, setHealth] = useState<Record<string, ServiceHealth>>({});
+  const [stackHealth, setStackHealth] = useState<number>(0);
+  const [rawStackHealth, setRawStackHealth] = useState<number>(0);
+  const [counts, setCounts] = useState({ online: 0, degraded: 0, offline: 0 });
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
@@ -118,6 +121,9 @@ export function SovereignStack() {
       if (r.ok) {
         setHealth(r.services);
         setCheckedAt(r.checkedAt);
+        setStackHealth(r.stackHealth);
+        setRawStackHealth(r.rawStackHealth);
+        setCounts(r.counts);
         evaluateAlerts(r.services);
       }
     } catch (e) {
@@ -135,11 +141,9 @@ export function SovereignStack() {
   }, [refresh]);
 
 
-  const statuses = STACK.map((s) => health[s.id]?.status ?? "degraded");
-  const online = statuses.filter((s) => s === "online").length;
-  const degraded = statuses.filter((s) => s === "degraded").length;
-  const offline = statuses.filter((s) => s === "offline").length;
-  const healthPct = Math.round((online / STACK.length) * 100);
+  const { online, degraded, offline } = counts;
+  const healthPct = stackHealth; // composite, policy-aware, smoothed
+
 
   return (
     <section className="space-y-6">
@@ -166,10 +170,11 @@ export function SovereignStack() {
             </div>
           </div>
           <div className="flex items-center gap-6">
-            <Metric value={`${healthPct}%`} label="Stack health" />
+            <Metric value={`${healthPct}%`} label={`stack_health (raw ${rawStackHealth}%)`} />
             <Metric value={`${online}/${STACK.length}`} label="Online" />
             <Metric value={`${degraded}·${offline}`} label="Degr · Off" />
           </div>
+
         </div>
       </div>
 
@@ -215,11 +220,18 @@ export function SovereignStack() {
                   {h?.detail ?? "Awaiting first probe…"}
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground/70">
-                  <span>{h?.target ?? s.role}</span>
+                  <span className="truncate">{h?.target ?? s.role}</span>
                   <span className="font-mono text-gold/80">
-                    {h?.latencyMs != null ? `${h.latencyMs}ms` : "—"}
+                    {h ? `score ${h.score}` : "—"}{h?.latencyMs != null ? ` · ${h.latencyMs}ms` : ""}
                   </span>
                 </div>
+                {h && (
+                  <div className="mt-1 flex items-center justify-between text-[9px] uppercase tracking-wider text-muted-foreground/60">
+                    <span>ttl {Math.round(h.policy.cacheTtlMs / 1000)}s · retries {h.policy.retries}{h.policy.critical ? " · crit" : ""}</span>
+                    <span>{h.samples} samp</span>
+                  </div>
+                )}
+
               </div>
 
               <div className="mt-3 flex items-end justify-between border-t border-border/40 pt-3">
