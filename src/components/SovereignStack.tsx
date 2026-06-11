@@ -69,6 +69,7 @@ export function SovereignStack() {
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [recovered, setRecovered] = useState(false);
+  const [events, setEvents] = useState<{ type: "crash" | "recovery"; at: string }[]>([]);
   const prevStackRef = useRef<number>(0);
   const alertsRef = useRef<Record<string, AlertState>>({});
   const firstRunRef = useRef(true);
@@ -110,8 +111,12 @@ export function SovereignStack() {
   }, [refresh]);
 
   useEffect(() => {
-    if (prevStackRef.current === 0 && stackHealth > 0) {
+    const prev = prevStackRef.current;
+    if (prev > 0 && stackHealth === 0) {
+      setEvents((ev) => [...ev, { type: "crash", at: new Date().toISOString() }]);
+    } else if (prev === 0 && stackHealth > 0) {
       setRecovered(true);
+      setEvents((ev) => [...ev, { type: "recovery", at: new Date().toISOString() }]);
     }
     prevStackRef.current = stackHealth;
   }, [stackHealth]);
@@ -130,6 +135,7 @@ export function SovereignStack() {
   const displayOnline = daemonOk ? STACK.length : 0;
   // Read but intentionally not shown — kept for future ops drilldown.
   void counts; void rawStackHealth;
+
 
 
   return (
