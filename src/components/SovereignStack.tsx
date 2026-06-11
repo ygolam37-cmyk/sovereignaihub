@@ -109,6 +109,19 @@ export function SovereignStack() {
     return () => { clearInterval(t); clearInterval(c); };
   }, [refresh]);
 
+  useEffect(() => {
+    if (prevStackRef.current === 0 && stackHealth > 0) {
+      setRecovered(true);
+    }
+    prevStackRef.current = stackHealth;
+  }, [stackHealth]);
+
+  useEffect(() => {
+    if (!recovered) return;
+    const t = setTimeout(() => setRecovered(false), 8_000);
+    return () => clearTimeout(t);
+  }, [recovered]);
+
 
   // Policy: Health-Probe Daemon owns transient noise. UI only flips off 100%
   // when the composite drops catastrophically (total system crash).
