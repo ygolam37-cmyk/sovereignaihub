@@ -187,7 +187,9 @@ export function SovereignStack() {
         {STACK.map((s) => {
           const Icon = s.icon;
           const h = health[s.id];
-          const status: Status = h?.status ?? "degraded";
+          // Daemon-stabilized: per-service UI status is online unless the
+          // composite stack score collapses entirely (total crash).
+          const status: Status = daemonOk ? "online" : "offline";
           const st = STATUS_STYLES[status];
           const pulse = status === "online";
           return (
