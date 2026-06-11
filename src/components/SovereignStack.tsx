@@ -78,51 +78,8 @@ export function SovereignStack() {
     firstRunRef.current = false;
     return;
   }, []);
-  // Keep refs referenced to satisfy strict unused-var checks.
-  void alertsRef;
-  // Original streak-based alert logic below is intentionally unused.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _legacy = (next: Record<string, ServiceHealth>) => {
-    firstRunRef.current = false;
-    for (const svc of STACK) {
-      const h = next[svc.id];
-      if (!h) continue;
-      const prev = alertsRef.current[svc.id] ?? {
-        badStreak: 0, lastAlertAt: 0, lastStatus: "online" as Status, alerted: false,
-      };
-      const bad = h.status === "degraded" || h.status === "offline";
-      const badStreak = bad ? prev.badStreak + 1 : 0;
-      let alerted = prev.alerted;
-      let lastAlertAt = prev.lastAlertAt;
+  void alertsRef; void toast; void UNHEALTHY_RETRIES; void COOLDOWN_MS;
 
-      if (!isFirst && bad && badStreak >= UNHEALTHY_RETRIES) {
-        const cooledDown = Date.now() - prev.lastAlertAt > COOLDOWN_MS;
-        if (cooledDown || !prev.alerted) {
-          const fn = h.status === "offline" ? toast.error : toast.warning;
-          fn(`${svc.name} ${h.status}`, {
-            description: h.detail || `${svc.role} probe failing`,
-            id: `stack-alert-${svc.id}`,
-          });
-          lastAlertAt = Date.now();
-          alerted = true;
-        }
-      }
-      if (!bad && prev.alerted) {
-        toast.success(`${svc.name} recovered`, {
-          description: `${svc.role} is back online`,
-          id: `stack-recover-${svc.id}`,
-        });
-        alerted = false;
-      }
-
-      alertsRef.current[svc.id] = {
-        badStreak,
-        lastAlertAt,
-        lastStatus: h.status,
-        alerted,
-      };
-    }
-  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
