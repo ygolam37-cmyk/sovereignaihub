@@ -68,6 +68,8 @@ export function SovereignStack() {
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
+  const [recovered, setRecovered] = useState(false);
+  const prevStackRef = useRef<number>(0);
   const alertsRef = useRef<Record<string, AlertState>>({});
   const firstRunRef = useRef(true);
 
