@@ -271,11 +271,12 @@ export function SovereignStack() {
   );
 }
 
-function Metric({ value, label }: { value: string; label: string }) {
+function Metric({ value, label, big = false }: { value: string; label: string; big?: boolean }) {
   return (
     <div className="text-right">
-      <div className="font-display text-2xl text-gradient-gold">{value}</div>
+      <div className={`font-display ${big ? "text-5xl" : "text-2xl"} font-bold text-gradient-gold`}>{value}</div>
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
   );
 }
+
