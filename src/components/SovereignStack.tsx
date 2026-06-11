@@ -68,6 +68,8 @@ export function SovereignStack() {
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
+  const [recovered, setRecovered] = useState(false);
+  const prevStackRef = useRef<number>(0);
   const alertsRef = useRef<Record<string, AlertState>>({});
   const firstRunRef = useRef(true);
 
@@ -107,6 +109,19 @@ export function SovereignStack() {
     return () => { clearInterval(t); clearInterval(c); };
   }, [refresh]);
 
+  useEffect(() => {
+    if (prevStackRef.current === 0 && stackHealth > 0) {
+      setRecovered(true);
+    }
+    prevStackRef.current = stackHealth;
+  }, [stackHealth]);
+
+  useEffect(() => {
+    if (!recovered) return;
+    const t = setTimeout(() => setRecovered(false), 8_000);
+    return () => clearTimeout(t);
+  }, [recovered]);
+
 
   // Policy: Health-Probe Daemon owns transient noise. UI only flips off 100%
   // when the composite drops catastrophically (total system crash).
@@ -126,6 +141,18 @@ export function SovereignStack() {
             <div className="font-display text-2xl font-bold text-rose-400">System Crash Detected</div>
             <p className="mt-1 text-sm text-rose-300/90">
               Composite stack_health collapsed — all 12 services are unreachable.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {recovered && (
+        <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500/50 bg-emerald-500/10 p-5 text-center shadow-elegant">
+          <div className="absolute inset-0 animate-pulse bg-emerald-500/5" aria-hidden />
+          <div className="relative">
+            <div className="font-display text-2xl font-bold text-emerald-400">System Recovered</div>
+            <p className="mt-1 text-sm text-emerald-300/90">
+              Composite stack_health is back above zero — all services responding.
             </p>
           </div>
         </div>
