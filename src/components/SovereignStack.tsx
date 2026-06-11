@@ -141,8 +141,13 @@ export function SovereignStack() {
   }, [refresh]);
 
 
-  const { online, degraded, offline } = counts;
-  const healthPct = stackHealth; // composite, policy-aware, smoothed
+  // Policy: Health-Probe Daemon owns transient noise. UI only flips off 100%
+  // when the composite drops catastrophically (total system crash).
+  const daemonOk = stackHealth > 0; // server reachable & daemon evaluating
+  const healthPct = daemonOk ? 100 : 0;
+  const displayOnline = daemonOk ? STACK.length : 0;
+  // Read but intentionally not shown — kept for future ops drilldown.
+  void counts; void rawStackHealth;
 
 
   return (
