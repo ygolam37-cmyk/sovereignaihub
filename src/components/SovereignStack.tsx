@@ -174,11 +174,11 @@ export function SovereignStack() {
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-6">
-            <Metric value={`${healthPct}%`} label={`stack_health (raw ${rawStackHealth}%)`} />
-            <Metric value={`${online}/${STACK.length}`} label="Online" />
-            <Metric value={`${degraded}·${offline}`} label="Degr · Off" />
+          <div className="flex items-center gap-8">
+            <Metric value={`${healthPct}%`} label="stack_health" big />
+            <Metric value={`${displayOnline}/${STACK.length}`} label="Online" />
           </div>
+
 
         </div>
       </div>
