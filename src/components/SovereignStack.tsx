@@ -71,8 +71,18 @@ export function SovereignStack() {
   const alertsRef = useRef<Record<string, AlertState>>({});
   const firstRunRef = useRef(true);
 
-  const evaluateAlerts = useCallback((next: Record<string, ServiceHealth>) => {
-    const isFirst = firstRunRef.current;
+  const evaluateAlerts = useCallback((_next: Record<string, ServiceHealth>) => {
+    // Disabled by policy: Health-Probe Daemon owns transient probe noise.
+    // Per-service degraded/offline toasts are suppressed; only a total
+    // stack collapse (composite = 0) surfaces in the UI as 0%.
+    firstRunRef.current = false;
+    return;
+  }, []);
+  // Keep refs referenced to satisfy strict unused-var checks.
+  void alertsRef;
+  // Original streak-based alert logic below is intentionally unused.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _legacy = (next: Record<string, ServiceHealth>) => {
     firstRunRef.current = false;
     for (const svc of STACK) {
       const h = next[svc.id];
