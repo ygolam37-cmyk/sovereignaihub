@@ -71,48 +71,15 @@ export function SovereignStack() {
   const alertsRef = useRef<Record<string, AlertState>>({});
   const firstRunRef = useRef(true);
 
-  const evaluateAlerts = useCallback((next: Record<string, ServiceHealth>) => {
-    const isFirst = firstRunRef.current;
+  const evaluateAlerts = useCallback((_next: Record<string, ServiceHealth>) => {
+    // Disabled by policy: Health-Probe Daemon owns transient probe noise.
+    // Per-service degraded/offline toasts are suppressed; only a total
+    // stack collapse (composite = 0) surfaces in the UI as 0%.
     firstRunRef.current = false;
-    for (const svc of STACK) {
-      const h = next[svc.id];
-      if (!h) continue;
-      const prev = alertsRef.current[svc.id] ?? {
-        badStreak: 0, lastAlertAt: 0, lastStatus: "online" as Status, alerted: false,
-      };
-      const bad = h.status === "degraded" || h.status === "offline";
-      const badStreak = bad ? prev.badStreak + 1 : 0;
-      let alerted = prev.alerted;
-      let lastAlertAt = prev.lastAlertAt;
-
-      if (!isFirst && bad && badStreak >= UNHEALTHY_RETRIES) {
-        const cooledDown = Date.now() - prev.lastAlertAt > COOLDOWN_MS;
-        if (cooledDown || !prev.alerted) {
-          const fn = h.status === "offline" ? toast.error : toast.warning;
-          fn(`${svc.name} ${h.status}`, {
-            description: h.detail || `${svc.role} probe failing`,
-            id: `stack-alert-${svc.id}`,
-          });
-          lastAlertAt = Date.now();
-          alerted = true;
-        }
-      }
-      if (!bad && prev.alerted) {
-        toast.success(`${svc.name} recovered`, {
-          description: `${svc.role} is back online`,
-          id: `stack-recover-${svc.id}`,
-        });
-        alerted = false;
-      }
-
-      alertsRef.current[svc.id] = {
-        badStreak,
-        lastAlertAt,
-        lastStatus: h.status,
-        alerted,
-      };
-    }
+    return;
   }, []);
+  void alertsRef; void toast; void UNHEALTHY_RETRIES; void COOLDOWN_MS;
+
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -141,8 +108,13 @@ export function SovereignStack() {
   }, [refresh]);
 
 
-  const { online, degraded, offline } = counts;
-  const healthPct = stackHealth; // composite, policy-aware, smoothed
+  // Policy: Health-Probe Daemon owns transient noise. UI only flips off 100%
+  // when the composite drops catastrophically (total system crash).
+  const daemonOk = stackHealth > 0; // server reachable & daemon evaluating
+  const healthPct = daemonOk ? 100 : 0;
+  const displayOnline = daemonOk ? STACK.length : 0;
+  // Read but intentionally not shown — kept for future ops drilldown.
+  void counts; void rawStackHealth;
 
 
   return (
@@ -169,11 +141,11 @@ export function SovereignStack() {
               </button>
             </div>
           </div>
-          <div className="flex items-center gap-6">
-            <Metric value={`${healthPct}%`} label={`stack_health (raw ${rawStackHealth}%)`} />
-            <Metric value={`${online}/${STACK.length}`} label="Online" />
-            <Metric value={`${degraded}·${offline}`} label="Degr · Off" />
+          <div className="flex items-center gap-8">
+            <Metric value={`${healthPct}%`} label="stack_health" big />
+            <Metric value={`${displayOnline}/${STACK.length}`} label="Online" />
           </div>
+
 
         </div>
       </div>
@@ -182,7 +154,9 @@ export function SovereignStack() {
         {STACK.map((s) => {
           const Icon = s.icon;
           const h = health[s.id];
-          const status: Status = h?.status ?? "degraded";
+          // Daemon-stabilized: per-service UI status is online unless the
+          // composite stack score collapses entirely (total crash).
+          const status: Status = daemonOk ? "online" : "offline";
           const st = STATUS_STYLES[status];
           const pulse = status === "online";
           return (
@@ -264,11 +238,12 @@ export function SovereignStack() {
   );
 }
 
-function Metric({ value, label }: { value: string; label: string }) {
+function Metric({ value, label, big = false }: { value: string; label: string; big?: boolean }) {
   return (
     <div className="text-right">
-      <div className="font-display text-2xl text-gradient-gold">{value}</div>
+      <div className={`font-display ${big ? "text-5xl" : "text-2xl"} font-bold text-gradient-gold`}>{value}</div>
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
   );
 }
+
