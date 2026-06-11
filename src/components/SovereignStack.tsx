@@ -195,6 +195,32 @@ export function SovereignStack() {
         </div>
       </div>
 
+      {/* Event Log */}
+      {events.length > 0 && (
+        <div className="glass rounded-2xl p-4 shadow-elegant">
+          <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <Activity className="h-3.5 w-3.5 text-gold" />
+            System Event Log
+          </div>
+          <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
+            {events.slice().reverse().map((ev, i) => (
+              <div key={i} className="flex items-center gap-3 rounded-lg border border-border/40 bg-background/30 px-3 py-2 text-xs">
+                <span className={`inline-block h-2 w-2 rounded-full ${ev.type === "crash" ? "bg-rose-500" : "bg-emerald-400"}`} />
+                <span className={`font-medium ${ev.type === "crash" ? "text-rose-400" : "text-emerald-400"}`}>
+                  {ev.type === "crash" ? "Crash" : "Recovered"}
+                </span>
+                <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                  {new Date(ev.at).toLocaleString()}
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground/70">
+                  {formatAgo(ev.at, now)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {STACK.map((s) => {
           const Icon = s.icon;
