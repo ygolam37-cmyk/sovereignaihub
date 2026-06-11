@@ -119,7 +119,19 @@ export function SovereignStack() {
 
   return (
     <section className="space-y-6">
-      <div className="glass relative overflow-hidden rounded-2xl p-6 shadow-elegant">
+      {stackHealth === 0 && (
+        <div className="relative overflow-hidden rounded-2xl border-2 border-rose-500/50 bg-rose-500/10 p-5 text-center shadow-elegant">
+          <div className="absolute inset-0 animate-pulse bg-rose-500/5" aria-hidden />
+          <div className="relative">
+            <div className="font-display text-2xl font-bold text-rose-400">System Crash Detected</div>
+            <p className="mt-1 text-sm text-rose-300/90">
+              Composite stack_health collapsed — all 12 services are unreachable.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className={`glass relative overflow-hidden rounded-2xl p-6 shadow-elegant transition-colors ${stackHealth === 0 ? "border-rose-500/40 bg-rose-500/5" : ""}`}>
         <div className="absolute inset-0 bg-gradient-radial opacity-40" aria-hidden />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
