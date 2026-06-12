@@ -4,6 +4,7 @@ import { Logo } from "@/components/Logo";
 import { NetworkIndicator } from "@/components/NetworkIndicator";
 import { TTSButton } from "@/components/TTSButton";
 import { SovereignStack } from "@/components/SovereignStack";
+import { ZeroTrustProtocol } from "@/components/ZeroTrustProtocol";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
@@ -87,6 +88,10 @@ function Dashboard() {
 
         <div className="mb-6">
           <SovereignStack />
+        </div>
+
+        <div className="mb-6">
+          <ZeroTrustProtocol />
         </div>
 
 
