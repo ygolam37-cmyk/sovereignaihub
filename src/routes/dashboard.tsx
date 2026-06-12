@@ -89,9 +89,7 @@ function Dashboard() {
           <SovereignStack />
         </div>
 
-        <div className="mb-6">
-          <ZeroTrustProtocol />
-        </div>
+
 
 
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4">
