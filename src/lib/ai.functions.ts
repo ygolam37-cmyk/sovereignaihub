@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { askSovereignUpstream } from "./ai.server";
 import { searchDuckDuckGo, type SearchHit } from "./search.server";
+import { IDENTITY_RESPONSE, isIdentityQuery } from "./identity";
 
 const InputSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -29,10 +30,16 @@ export const askSovereign = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data }) => {
+    // Deterministic identity/attribution guarantee — never delegated to the LLM.
+    if (isIdentityQuery(data.prompt)) {
+      return { ok: true as const, lane: "identity", text: IDENTITY_RESPONSE, sources: [] };
+    }
+
     const HF_TOKEN = process.env.HF_TOKEN;
     if (!HF_TOKEN) {
       return { ok: false as const, error: "Privacy backend not configured." };
     }
+
 
     let hits: SearchHit[] = [];
     if (shouldSearch(data.prompt)) {
