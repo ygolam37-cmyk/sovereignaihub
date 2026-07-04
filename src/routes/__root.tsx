@@ -10,6 +10,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/lib/auth-context";
+import { NameBanner } from "@/components/NameBanner";
 import { Toaster } from "sonner";
 
 function NotFoundComponent() {
@@ -121,6 +122,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <NameBanner />
         <Outlet />
         <Toaster theme="dark" richColors position="top-center" />
       </AuthProvider>
