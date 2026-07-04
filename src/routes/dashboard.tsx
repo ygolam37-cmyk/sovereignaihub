@@ -84,9 +84,6 @@ function Dashboard() {
           Identity firewall active — your name, email, and ID are stripped before any model is called.
         </div>
 
-        <div className="mb-6">
-          <SovereignStack />
-        </div>
 
 
 
