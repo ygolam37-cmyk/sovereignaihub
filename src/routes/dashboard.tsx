@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { NetworkIndicator } from "@/components/NetworkIndicator";
 import { TTSButton } from "@/components/TTSButton";
-import { SovereignStack } from "@/components/SovereignStack";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth-context";
@@ -85,9 +84,6 @@ function Dashboard() {
           Identity firewall active — your name, email, and ID are stripped before any model is called.
         </div>
 
-        <div className="mb-6">
-          <SovereignStack />
-        </div>
 
 
 
