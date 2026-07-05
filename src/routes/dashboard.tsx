@@ -16,7 +16,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 type Source = { title: string; url: string; snippet: string };
-type Msg = { role: "user" | "assistant"; content: string; lane?: string; sources?: Source[] };
+type Msg = { role: "user" | "assistant"; content: string; lane?: string; sources?: Source[]; audit?: string };
 
 function Dashboard() {
   const { user, loading, signOut } = useAuth();
@@ -50,8 +50,9 @@ function Dashboard() {
       if (res.ok) {
         setMessages((m) => [
           ...m,
-          { role: "assistant", content: res.text || "(no response)", lane: res.lane, sources: res.sources },
+          { role: "assistant", content: res.text || "(no response)", lane: res.lane, sources: res.sources, audit: res.audit },
         ]);
+
       } else {
         toast.error(res.error);
       }
