@@ -4,6 +4,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { askSovereignUpstream } from "./ai.server";
 import { searchDuckDuckGo, type SearchHit } from "./search.server";
 import { IDENTITY_RESPONSE, isIdentityQuery } from "./identity";
+import { reviewWorkerResponse, identityFirewall } from "./manager.server";
+
+
 
 const InputSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -32,8 +35,15 @@ export const askSovereign = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     // Deterministic identity/attribution guarantee — never delegated to the LLM.
     if (isIdentityQuery(data.prompt)) {
-      return { ok: true as const, lane: "identity", text: IDENTITY_RESPONSE, sources: [] };
+      return {
+        ok: true as const,
+        lane: "identity",
+        text: IDENTITY_RESPONSE,
+        sources: [],
+        audit: "Reasoning Audit: Identity query — deterministic response, no worker call.",
+      };
     }
+
 
     const HF_TOKEN = process.env.HF_TOKEN;
     if (!HF_TOKEN) {
@@ -53,7 +63,22 @@ export const askSovereign = createServerFn({ method: "POST" })
     try {
       const res = await askSovereignUpstream({ token: HF_TOKEN, prompt: augmented });
       if (res.ok) {
-        return { ...res, sources: hits };
+        // Recursive Validation — Manager reviews the Worker's draft.
+        const review = await reviewWorkerResponse({
+          token: HF_TOKEN,
+          userPrompt: data.prompt,
+          draft: res.text,
+        });
+        // Extra identity firewall — no Aadhaar or PII ever leaves the boundary.
+        const finalText = identityFirewall(review.final);
+        return {
+          ok: true as const,
+          lane: res.lane,
+          text: finalText,
+          sources: hits,
+          audit: review.audit,
+          verdict: review.verdict,
+        };
       }
       return res;
     } catch (e) {
@@ -61,3 +86,4 @@ export const askSovereign = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Network error reaching privacy backend." };
     }
   });
+
