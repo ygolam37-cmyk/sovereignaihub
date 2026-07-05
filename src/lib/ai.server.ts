@@ -1,4 +1,7 @@
+import { stripPII } from "./privacy";
+
 type Lane = "fast" | "reasoning" | "code" | "creative";
+
 
 type UpstreamAttempt =
   | { ok: true; text: string; model: string }
@@ -31,11 +34,9 @@ function routePrompt(prompt: string): Lane {
 }
 
 function sanitize(prompt: string): string {
-  return prompt
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]")
-    .replace(/\+?\d[\d\s().-]{7,}\d/g, "[phone]")
-    .replace(/\b\d{1,5}\s+[A-Z][a-z]+\s+(St|Street|Ave|Avenue|Rd|Road|Blvd)\b/g, "[address]");
+  return stripPII(prompt, { scrubNameIntros: true });
 }
+
 
 function parseHuggingFaceError(body: string): { code?: string; message?: string; param?: string } {
   try {
