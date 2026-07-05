@@ -20,17 +20,11 @@ const MANAGER_MODELS = [
   "openai/gpt-oss-120b:scaleway",
 ];
 
-// Redact 12-digit Aadhaar-style numbers (with optional spaces/dashes) and other obvious IDs.
-export function identityFirewall(text: string): string {
-  if (!text) return text;
-  return text
-    // Aadhaar: 12 digits, optionally split as 4-4-4
-    .replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, "[redacted-id]")
-    // Any other bare 12+ digit runs
-    .replace(/\b\d{12,}\b/g, "[redacted-id]")
-    // Emails
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[redacted-email]");
-}
+import { identityFirewall as sharedIdentityFirewall } from "./privacy";
+
+// Re-export for existing callers.
+export const identityFirewall = sharedIdentityFirewall;
+
 
 type ManagerVerdict = {
   verdict: "approve" | "rewrite";
