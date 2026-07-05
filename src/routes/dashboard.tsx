@@ -134,7 +134,13 @@ function Dashboard() {
                     ))}
                   </div>
                 )}
+                {m.role === "assistant" && m.audit && (
+                  <div className="mt-2 border-t border-border/40 pt-2 text-[10px] italic text-muted-foreground/80">
+                    {m.audit}
+                  </div>
+                )}
               </div>
+
             </div>
           ))}
           {busy && (
