@@ -86,7 +86,7 @@ export const askSovereign = createServerFn({ method: "POST" })
           lane: res.lane,
           text: finalText,
           sources: hits,
-          audit: review.audit,
+          audit: researchAudit ? `${researchAudit}\n${review.audit}` : review.audit,
           verdict: review.verdict,
         };
       }
