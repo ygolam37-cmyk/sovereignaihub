@@ -1,13 +1,17 @@
 // Zero-API, multi-engine open-source search with raw RSS/HTML fallbacks.
 // No API keys. Rotates strategies until one returns hits.
 
+import { stripPII } from "./privacy";
+
 export type SearchHit = {
   title: string;
   url: string;
   snippet: string;
   publishedAt?: string; // ISO when available (RSS/news)
   source?: string;
+  verifiedBy?: string[]; // engines that independently returned this URL/domain
 };
+
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
