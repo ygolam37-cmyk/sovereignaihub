@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { askSovereignUpstream } from "./ai.server";
-import { searchDuckDuckGo, type SearchHit } from "./search.server";
+import { searchDuckDuckGo, researchOpenSource, type SearchHit } from "./search.server";
 import { IDENTITY_RESPONSE, isIdentityQuery } from "./identity";
 import { reviewWorkerResponse, identityFirewall } from "./manager.server";
 
