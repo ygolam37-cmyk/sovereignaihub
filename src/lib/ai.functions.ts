@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { askSovereignUpstream } from "./ai.server";
-import { searchDuckDuckGo, type SearchHit } from "./search.server";
+import { searchDuckDuckGo, researchOpenSource, type SearchHit } from "./search.server";
 import { IDENTITY_RESPONSE, isIdentityQuery } from "./identity";
 import { reviewWorkerResponse, identityFirewall } from "./manager.server";
 
@@ -52,13 +52,23 @@ export const askSovereign = createServerFn({ method: "POST" })
 
 
     let hits: SearchHit[] = [];
+    let researchAudit: string | undefined;
     if (shouldSearch(data.prompt)) {
-      hits = await searchDuckDuckGo(data.prompt, 5).catch(() => []);
+      try {
+        const research = await researchOpenSource(data.prompt, 5);
+        hits = research.hits;
+        researchAudit = research.audit.audit;
+      } catch {
+        // Fall back to legacy single-path search if orchestrator fails entirely.
+        hits = await searchDuckDuckGo(data.prompt, 5).catch(() => []);
+      }
     }
 
     const augmented = hits.length
       ? `${formatContext(hits)}\n\nUser question: ${data.prompt}`
       : data.prompt;
+
+
 
     try {
       const res = await askSovereignUpstream({ token: HF_TOKEN, prompt: augmented });
@@ -76,7 +86,7 @@ export const askSovereign = createServerFn({ method: "POST" })
           lane: res.lane,
           text: finalText,
           sources: hits,
-          audit: review.audit,
+          audit: researchAudit ? `${researchAudit}\n${review.audit}` : review.audit,
           verdict: review.verdict,
         };
       }
