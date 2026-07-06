@@ -52,13 +52,23 @@ export const askSovereign = createServerFn({ method: "POST" })
 
 
     let hits: SearchHit[] = [];
+    let researchAudit: string | undefined;
     if (shouldSearch(data.prompt)) {
-      hits = await searchDuckDuckGo(data.prompt, 5).catch(() => []);
+      try {
+        const research = await researchOpenSource(data.prompt, 5);
+        hits = research.hits;
+        researchAudit = research.audit.audit;
+      } catch {
+        // Fall back to legacy single-path search if orchestrator fails entirely.
+        hits = await searchDuckDuckGo(data.prompt, 5).catch(() => []);
+      }
     }
 
     const augmented = hits.length
       ? `${formatContext(hits)}\n\nUser question: ${data.prompt}`
       : data.prompt;
+
+
 
     try {
       const res = await askSovereignUpstream({ token: HF_TOKEN, prompt: augmented });
