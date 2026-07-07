@@ -21,11 +21,8 @@ function Landing() {
         <Logo />
         <nav className="flex items-center gap-2">
           <Link to="/login">
-            <Button variant="ghost">Sign in</Button>
-          </Link>
-          <Link to="/signup">
             <Button className="bg-gradient-gold text-primary-foreground shadow-gold hover:opacity-90">
-              Get access
+              Enter Sovereign
             </Button>
           </Link>
         </nav>
@@ -46,14 +43,9 @@ function Landing() {
             leaves our servers.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link to="/signup">
-              <Button size="lg" className="bg-gradient-gold text-primary-foreground shadow-gold hover:opacity-90">
-                Create your account
-              </Button>
-            </Link>
             <Link to="/login">
-              <Button size="lg" variant="outline" className="border-gold/40">
-                Sign in
+              <Button size="lg" className="bg-gradient-gold text-primary-foreground shadow-gold hover:opacity-90">
+                Generate access code
               </Button>
             </Link>
           </div>

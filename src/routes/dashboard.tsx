@@ -71,7 +71,7 @@ function Dashboard() {
           <Logo />
           <div className="flex items-center gap-3">
             <NetworkIndicator />
-            <span className="hidden text-xs text-muted-foreground sm:inline">{user.email}</span>
+            <span className="hidden text-xs text-muted-foreground sm:inline">{user.label}</span>
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="mr-2 h-4 w-4" /> Sign out
             </Button>
