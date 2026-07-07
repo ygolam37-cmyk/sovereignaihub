@@ -1,35 +1,62 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
-import { GoogleButton } from "@/components/GoogleButton";
 import { toast } from "sonner";
+import { RefreshCw, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
   component: Login,
 });
 
+// 12-char alphanumeric (mixed case + digits), cryptographically random, ephemeral.
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const CODE_LEN = 12;
+
+function generateCode(): string {
+  const buf = new Uint32Array(CODE_LEN);
+  crypto.getRandomValues(buf);
+  let out = "";
+  for (let i = 0; i < CODE_LEN; i++) out += ALPHABET[buf[i] % ALPHABET.length];
+  return out;
+}
+
 function Login() {
-  const { signIn, user } = useAuth();
+  const { signInWithCode, user } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [code, setCode] = useState<string>(() => generateCode());
+  const [entered, setEntered] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (user) navigate({ to: "/dashboard" });
   }, [user, navigate]);
 
-  const submit = async (e: React.FormEvent) => {
+  const regenerate = useCallback(() => {
+    setCode(generateCode());
+    setEntered("");
+  }, []);
+
+  const matched = useMemo(
+    () => entered.length === code.length && entered === code,
+    [entered, code],
+  );
+
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) toast.error(error);
-    else navigate({ to: "/dashboard" });
+    setSubmitting(true);
+    const res = signInWithCode(code, entered);
+    setSubmitting(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      // Ephemeral: rotate the challenge on any failed attempt.
+      regenerate();
+      return;
+    }
+    navigate({ to: "/dashboard" });
   };
 
   return (
@@ -37,29 +64,81 @@ function Login() {
       <div className="w-full max-w-md">
         <div className="mb-8 flex justify-center"><Logo /></div>
         <div className="glass rounded-2xl p-8 shadow-elegant">
-          <h1 className="font-display text-3xl">Welcome back</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Sign in to your private workspace.</p>
-          <div className="mt-6">
-            <GoogleButton label="Sign in with Google" />
-            <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
-              <span className="h-px flex-1 bg-border/60" /> or <span className="h-px flex-1 bg-border/60" />
-            </div>
+          <div className="flex items-center gap-2 text-xs text-gold">
+            <ShieldCheck className="h-4 w-4" />
+            Local algorithmic authentication
           </div>
-          <form onSubmit={submit} className="space-y-4">
+          <h1 className="mt-2 font-display text-3xl">Sovereign access</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The algorithm generated a one-time code for this session. Type it exactly to enter.
+            Nothing is sent to any server.
+          </p>
+
+          <form onSubmit={submit} className="mt-6 space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Label>Box 1 — Generated code</Label>
+              <div className="flex items-center gap-2">
+                <div
+                  aria-live="polite"
+                  className="flex-1 select-all rounded-md border border-gold/40 bg-background/60 px-3 py-2 font-mono text-lg tracking-[0.25em] text-gold"
+                >
+                  {code}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={regenerate}
+                  aria-label="Regenerate code"
+                  className="border-gold/40"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Label htmlFor="entered">Box 2 — Retype the code</Label>
+              <Input
+                id="entered"
+                autoFocus
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="text"
+                maxLength={CODE_LEN}
+                value={entered}
+                onChange={(e) => setEntered(e.target.value)}
+                className="font-mono text-lg tracking-[0.25em]"
+              />
+              <p
+                className={`text-xs ${
+                  entered.length === 0
+                    ? "text-muted-foreground"
+                    : matched
+                      ? "text-emerald-400"
+                      : "text-destructive"
+                }`}
+              >
+                {entered.length === 0
+                  ? "Character-by-character match required."
+                  : matched
+                    ? "Exact match — you may enter."
+                    : `Mismatch (${entered.length}/${CODE_LEN}).`}
+              </p>
             </div>
-            <Button type="submit" disabled={loading} className="w-full bg-gradient-gold text-primary-foreground shadow-gold hover:opacity-90">
-              {loading ? "Signing in…" : "Sign in"}
+
+            <Button
+              type="submit"
+              disabled={submitting || !matched}
+              className="w-full bg-gradient-gold text-primary-foreground shadow-gold hover:opacity-90"
+            >
+              {submitting ? "Verifying…" : "Enter Sovereign"}
             </Button>
           </form>
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            New here? <Link to="/signup" className="text-gold hover:underline">Create an account</Link>
+
+          <p className="mt-6 text-center text-[11px] uppercase tracking-wider text-muted-foreground">
+            Ephemeral · Client-side only · No accounts
           </p>
         </div>
       </div>
