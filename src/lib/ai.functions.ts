@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { askSovereignUpstream } from "./ai.server";
 import { searchDuckDuckGo, researchOpenSource, type SearchHit } from "./search.server";
 import { IDENTITY_RESPONSE, isIdentityQuery } from "./identity";
@@ -30,7 +29,6 @@ function formatContext(hits: SearchHit[]): string {
 }
 
 export const askSovereign = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data }) => {
     // Deterministic identity/attribution guarantee — never delegated to the LLM.

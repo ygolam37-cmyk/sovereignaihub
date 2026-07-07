@@ -1,121 +1,62 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+
+type LocalUser = { id: string; label: string };
 
 type AuthCtx = {
-  user: User | null;
-  session: Session | null;
+  user: LocalUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string) => Promise<{ error?: string }>;
-  signOut: () => Promise<void>;
+  signInWithCode: (generated: string, entered: string) => { ok: true } | { ok: false; error: string };
+  signOut: () => void;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
+const STORAGE_KEY = "sovereign.localAuth.v1";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<LocalUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const authFetchFlag = "__sovereignAuthFetchInstalled";
-      const windowWithFlag = window as typeof window & {
-        [authFetchFlag]?: boolean;
-      };
-
-      if (!windowWithFlag[authFetchFlag]) {
-        windowWithFlag[authFetchFlag] = true;
-        const originalFetch = window.fetch.bind(window);
-
-        window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-          try {
-            const url =
-              typeof input === "string"
-                ? input
-                : input instanceof URL
-                  ? input.toString()
-                  : input.url;
-
-            if (url.includes("/_serverFn/")) {
-              const { data } = await supabase.auth.getSession();
-              const token = data.session?.access_token;
-
-              if (token) {
-                const headers = new Headers(
-                  init?.headers ?? (input instanceof Request ? input.headers : undefined),
-                );
-
-                if (!headers.has("authorization")) {
-                  headers.set("authorization", `Bearer ${token}`);
-                }
-
-                return originalFetch(input, { ...init, headers });
-              }
-            }
-          } catch {
-            // fall through to original fetch
-          }
-
-          return originalFetch(input, init);
-        };
-      }
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) setUser(JSON.parse(raw) as LocalUser);
+    } catch {
+      // ignore
     }
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      setLoading(false);
-    });
-
-    void supabase.auth
-      .getSession()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Failed to restore session", error);
-          setSession(null);
-          setUser(null);
-          return;
-        }
-
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
-      })
-      .catch((error) => {
-        console.error("Failed to restore session", error);
-        setSession(null);
-        setUser(null);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-
-    return () => sub.subscription.unsubscribe();
+    setLoading(false);
   }, []);
 
-  const value: AuthCtx = {
-    user,
-    session,
-    loading,
-    signIn: async (email, password) => {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      return { error: error?.message };
-    },
-    signUp: async (email, password) => {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/dashboard` },
-      });
-      return { error: error?.message };
-    },
-    signOut: async () => {
-      await supabase.auth.signOut();
-    },
-  };
+  const signInWithCode = useCallback((generated: string, entered: string) => {
+    // Strict, constant-length, character-by-character match. No trimming, no case fold.
+    if (!generated || generated.length !== entered.length) {
+      return { ok: false as const, error: "Access denied — code mismatch." };
+    }
+    let diff = 0;
+    for (let i = 0; i < generated.length; i++) {
+      diff |= generated.charCodeAt(i) ^ entered.charCodeAt(i);
+    }
+    if (diff !== 0) {
+      return { ok: false as const, error: "Access denied — code mismatch." };
+    }
+    const u: LocalUser = {
+      id: crypto.randomUUID(),
+      label: `Sovereign session · ${generated.slice(0, 4)}…`,
+    };
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+    setUser(u);
+    return { ok: true as const };
+  }, []);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  const signOut = useCallback(() => {
+    sessionStorage.removeItem(STORAGE_KEY);
+    setUser(null);
+  }, []);
+
+  return (
+    <Ctx.Provider value={{ user, loading, signInWithCode, signOut }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useAuth() {
