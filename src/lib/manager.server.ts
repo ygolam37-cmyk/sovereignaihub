@@ -102,10 +102,13 @@ export async function reviewWorkerResponse(params: {
     return {
       final: identityFirewall(parsed.final),
       verdict: parsed.verdict,
-      audit: `Reasoning Audit: Checked logic, verified facts, and cleared safety protocols. ${
-        parsed.verdict === "rewrite" ? "Override applied" : "Draft approved"
-      }${parsed.reason ? ` — ${parsed.reason}` : ""}.`,
+      audit: identityFirewall(
+        `Reasoning Audit: Checked logic, verified facts, and cleared safety protocols. ${
+          parsed.verdict === "rewrite" ? "Override applied" : "Draft approved"
+        }${parsed.reason ? ` — ${parsed.reason}` : ""}.`,
+      ),
     };
+
   }
 
   // Manager unreachable — fall back to firewall-only pass on draft.
