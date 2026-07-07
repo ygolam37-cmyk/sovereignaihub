@@ -12,6 +12,15 @@ type AuthCtx = {
 const Ctx = createContext<AuthCtx | null>(null);
 const STORAGE_KEY = "sovereign.localAuth.v1";
 
+export function hasLocalAuth(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return !!sessionStorage.getItem(STORAGE_KEY);
+  } catch {
+    return false;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<LocalUser | null>(null);
   const [loading, setLoading] = useState(true);
