@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { NetworkIndicator } from "@/components/NetworkIndicator";
@@ -10,8 +10,15 @@ import { useServerFn } from "@tanstack/react-start";
 import { askSovereign } from "@/lib/ai.functions";
 import { toast } from "sonner";
 import { Shield, Send, LogOut, Sparkles, ExternalLink } from "lucide-react";
+import { hasLocalAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/dashboard")({
+  ssr: false,
+  beforeLoad: ({ location }) => {
+    if (!hasLocalAuth()) {
+      throw redirect({ to: "/login", search: { redirect: location.href } });
+    }
+  },
   component: Dashboard,
 });
 
