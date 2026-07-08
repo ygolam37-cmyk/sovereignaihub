@@ -1,4 +1,6 @@
 import { stripPII } from "./privacy";
+import { markNodeDown, isNodeUp } from "./node-routing.server";
+import { verifyModelSha } from "./registry.server";
 
 type Lane = "fast" | "reasoning" | "code" | "creative";
 
@@ -18,12 +20,54 @@ const SYSTEM_PROMPT = [
   "Keep answers concise unless the user asks for depth.",
 ].join("\n");
 
-const MODEL_CANDIDATES: Record<Lane, string[]> = {
+// Fallback seed list — used when the registry is unreachable or has no
+// approved models in a lane. The registry is the primary source of truth.
+const SEED_CANDIDATES: Record<Lane, string[]> = {
   fast: ["openai/gpt-oss-120b:scaleway", "moonshotai/Kimi-K2.5:fireworks-ai"],
   reasoning: ["deepseek-ai/DeepSeek-R1:novita", "openai/gpt-oss-120b:scaleway"],
   code: ["openai/gpt-oss-120b:scaleway", "deepseek-ai/DeepSeek-R1:novita"],
   creative: ["moonshotai/Kimi-K2.5:fireworks-ai", "openai/gpt-oss-120b:scaleway"],
 };
+
+type CandidateRow = { hf_model_id: string; manifest_sha: string | null };
+
+// 60s in-memory cache to avoid hammering the DB on every prompt.
+let laneCache: { at: number; rows: Record<Lane, CandidateRow[]> } | null = null;
+const LANE_CACHE_MS = 60_000;
+
+async function loadLaneCandidates(lane: Lane): Promise<CandidateRow[]> {
+  if (laneCache && Date.now() - laneCache.at < LANE_CACHE_MS) {
+    return laneCache.rows[lane] ?? [];
+  }
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("model_registry")
+      .select("hf_model_id,lane,manifest_sha")
+      .eq("status", "approved");
+    const rows: Record<Lane, CandidateRow[]> = { fast: [], reasoning: [], code: [], creative: [] };
+    for (const r of data ?? []) {
+      rows[r.lane as Lane]?.push({ hf_model_id: r.hf_model_id, manifest_sha: r.manifest_sha });
+    }
+    laneCache = { at: Date.now(), rows };
+    return rows[lane] ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function quarantineModel(hfModelId: string, reason: string) {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin
+      .from("model_registry")
+      .update({ status: "quarantined", notes: `Auto-quarantined: ${reason}`, last_verified_at: new Date().toISOString() })
+      .eq("hf_model_id", hfModelId);
+    laneCache = null;
+  } catch {
+    /* best-effort */
+  }
+}
 
 function routePrompt(prompt: string): Lane {
   const p = prompt.toLowerCase();
