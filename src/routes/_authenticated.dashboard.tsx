@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { Shield, Send, LogOut, Sparkles, ExternalLink } from "lucide-react";
 import { hasLocalAuth } from "@/lib/auth-context";
 
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   ssr: false,
   beforeLoad: ({ location }) => {
     if (!hasLocalAuth()) {
