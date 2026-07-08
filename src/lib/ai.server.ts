@@ -198,36 +198,61 @@ async function callHuggingFaceDirect(params: {
   return { ok: true, text, model: params.model };
 }
 
+async function resolveLaneCandidates(lane: Lane): Promise<CandidateRow[]> {
+  const registry = await loadLaneCandidates(lane);
+  if (registry.length > 0) return registry;
+  // Registry empty → fall back to seed list, no manifest to verify.
+  return SEED_CANDIDATES[lane].map((id) => ({ hf_model_id: id, manifest_sha: null }));
+}
+
 export async function askSovereignUpstream(params: { token: string; prompt: string }) {
   const lane = routePrompt(params.prompt);
   const cleanPrompt = sanitize(params.prompt);
   const attempts: UpstreamAttempt[] = [];
+  const candidates = await resolveLaneCandidates(lane);
 
-  for (const model of MODEL_CANDIDATES[lane]) {
-    const chatAttempt = await callHuggingFaceChat({
-      token: params.token,
-      model,
-      prompt: cleanPrompt,
-    });
-    attempts.push(chatAttempt);
-
-    if (chatAttempt.ok) {
-      return { ok: true as const, lane, text: chatAttempt.text };
+  for (const cand of candidates) {
+    // Signed-manifest check: skip candidates whose HF SHA has drifted.
+    if (cand.manifest_sha) {
+      const check = await verifyModelSha(cand.hf_model_id, cand.manifest_sha);
+      if (check.drift) {
+        await quarantineModel(cand.hf_model_id, `SHA drift: expected ${cand.manifest_sha}, got ${check.currentSha}`);
+        continue;
+      }
     }
 
-    console.error("HF router error", chatAttempt.status, model, chatAttempt.body.slice(0, 300));
+    const routerUp = isNodeUp("hf-router");
+    if (!routerUp) {
+      // Skip router; try direct instead as a fallback node.
+    } else {
+      const chatAttempt = await callHuggingFaceChat({
+        token: params.token,
+        model: cand.hf_model_id,
+        prompt: cleanPrompt,
+      });
+      attempts.push(chatAttempt);
 
-    if (chatAttempt.status === 429 || chatAttempt.status === 503) {
-      return { ok: false as const, error: mapUpstreamError(chatAttempt) };
+      if (chatAttempt.ok) {
+        return { ok: true as const, lane, text: chatAttempt.text };
+      }
+
+      console.error("HF router error", chatAttempt.status, cand.hf_model_id, chatAttempt.body.slice(0, 300));
+
+      if (chatAttempt.status >= 500) markNodeDown("hf-router", `HTTP ${chatAttempt.status}`);
+      if (chatAttempt.status === 429 || chatAttempt.status === 503) {
+        return { ok: false as const, error: mapUpstreamError(chatAttempt) };
+      }
+
+      if (!shouldTryDirectModelFallback(chatAttempt)) {
+        continue;
+      }
     }
 
-    if (!shouldTryDirectModelFallback(chatAttempt)) {
-      continue;
-    }
+    if (!isNodeUp("hf-direct")) continue;
 
     const directAttempt = await callHuggingFaceDirect({
       token: params.token,
-      model,
+      model: cand.hf_model_id,
       prompt: cleanPrompt,
     });
     attempts.push(directAttempt);
@@ -236,7 +261,8 @@ export async function askSovereignUpstream(params: { token: string; prompt: stri
       return { ok: true as const, lane, text: directAttempt.text };
     }
 
-    console.error("HF direct error", directAttempt.status, model, directAttempt.body.slice(0, 300));
+    console.error("HF direct error", directAttempt.status, cand.hf_model_id, directAttempt.body.slice(0, 300));
+    if (directAttempt.status >= 500) markNodeDown("hf-direct", `HTTP ${directAttempt.status}`);
 
     if (directAttempt.status === 429 || directAttempt.status === 503) {
       return { ok: false as const, error: mapUpstreamError(directAttempt) };
