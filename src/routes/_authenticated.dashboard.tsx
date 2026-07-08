@@ -73,6 +73,11 @@ function Dashboard() {
           <div className="flex items-center gap-3">
             <NetworkIndicator />
             <span className="hidden text-xs text-muted-foreground sm:inline">{user.label}</span>
+            <Link to="/models">
+              <Button variant="ghost" size="sm">
+                <Network className="mr-2 h-4 w-4" /> Models
+              </Button>
+            </Link>
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="mr-2 h-4 w-4" /> Sign out
             </Button>
