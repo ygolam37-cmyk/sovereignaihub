@@ -1,4 +1,6 @@
 import { stripPII } from "./privacy";
+import { markNodeDown, isNodeUp } from "./node-routing.server";
+import { verifyModelSha } from "./registry.server";
 
 type Lane = "fast" | "reasoning" | "code" | "creative";
 
@@ -18,12 +20,54 @@ const SYSTEM_PROMPT = [
   "Keep answers concise unless the user asks for depth.",
 ].join("\n");
 
-const MODEL_CANDIDATES: Record<Lane, string[]> = {
+// Fallback seed list — used when the registry is unreachable or has no
+// approved models in a lane. The registry is the primary source of truth.
+const SEED_CANDIDATES: Record<Lane, string[]> = {
   fast: ["openai/gpt-oss-120b:scaleway", "moonshotai/Kimi-K2.5:fireworks-ai"],
   reasoning: ["deepseek-ai/DeepSeek-R1:novita", "openai/gpt-oss-120b:scaleway"],
   code: ["openai/gpt-oss-120b:scaleway", "deepseek-ai/DeepSeek-R1:novita"],
   creative: ["moonshotai/Kimi-K2.5:fireworks-ai", "openai/gpt-oss-120b:scaleway"],
 };
+
+type CandidateRow = { hf_model_id: string; manifest_sha: string | null };
+
+// 60s in-memory cache to avoid hammering the DB on every prompt.
+let laneCache: { at: number; rows: Record<Lane, CandidateRow[]> } | null = null;
+const LANE_CACHE_MS = 60_000;
+
+async function loadLaneCandidates(lane: Lane): Promise<CandidateRow[]> {
+  if (laneCache && Date.now() - laneCache.at < LANE_CACHE_MS) {
+    return laneCache.rows[lane] ?? [];
+  }
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("model_registry")
+      .select("hf_model_id,lane,manifest_sha")
+      .eq("status", "approved");
+    const rows: Record<Lane, CandidateRow[]> = { fast: [], reasoning: [], code: [], creative: [] };
+    for (const r of data ?? []) {
+      rows[r.lane as Lane]?.push({ hf_model_id: r.hf_model_id, manifest_sha: r.manifest_sha });
+    }
+    laneCache = { at: Date.now(), rows };
+    return rows[lane] ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function quarantineModel(hfModelId: string, reason: string) {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin
+      .from("model_registry")
+      .update({ status: "quarantined", notes: `Auto-quarantined: ${reason}`, last_verified_at: new Date().toISOString() })
+      .eq("hf_model_id", hfModelId);
+    laneCache = null;
+  } catch {
+    /* best-effort */
+  }
+}
 
 function routePrompt(prompt: string): Lane {
   const p = prompt.toLowerCase();
@@ -154,36 +198,61 @@ async function callHuggingFaceDirect(params: {
   return { ok: true, text, model: params.model };
 }
 
+async function resolveLaneCandidates(lane: Lane): Promise<CandidateRow[]> {
+  const registry = await loadLaneCandidates(lane);
+  if (registry.length > 0) return registry;
+  // Registry empty → fall back to seed list, no manifest to verify.
+  return SEED_CANDIDATES[lane].map((id) => ({ hf_model_id: id, manifest_sha: null }));
+}
+
 export async function askSovereignUpstream(params: { token: string; prompt: string }) {
   const lane = routePrompt(params.prompt);
   const cleanPrompt = sanitize(params.prompt);
   const attempts: UpstreamAttempt[] = [];
+  const candidates = await resolveLaneCandidates(lane);
 
-  for (const model of MODEL_CANDIDATES[lane]) {
-    const chatAttempt = await callHuggingFaceChat({
-      token: params.token,
-      model,
-      prompt: cleanPrompt,
-    });
-    attempts.push(chatAttempt);
-
-    if (chatAttempt.ok) {
-      return { ok: true as const, lane, text: chatAttempt.text };
+  for (const cand of candidates) {
+    // Signed-manifest check: skip candidates whose HF SHA has drifted.
+    if (cand.manifest_sha) {
+      const check = await verifyModelSha(cand.hf_model_id, cand.manifest_sha);
+      if (check.drift) {
+        await quarantineModel(cand.hf_model_id, `SHA drift: expected ${cand.manifest_sha}, got ${check.currentSha}`);
+        continue;
+      }
     }
 
-    console.error("HF router error", chatAttempt.status, model, chatAttempt.body.slice(0, 300));
+    const routerUp = isNodeUp("hf-router");
+    if (!routerUp) {
+      // Skip router; try direct instead as a fallback node.
+    } else {
+      const chatAttempt = await callHuggingFaceChat({
+        token: params.token,
+        model: cand.hf_model_id,
+        prompt: cleanPrompt,
+      });
+      attempts.push(chatAttempt);
 
-    if (chatAttempt.status === 429 || chatAttempt.status === 503) {
-      return { ok: false as const, error: mapUpstreamError(chatAttempt) };
+      if (chatAttempt.ok) {
+        return { ok: true as const, lane, text: chatAttempt.text };
+      }
+
+      console.error("HF router error", chatAttempt.status, cand.hf_model_id, chatAttempt.body.slice(0, 300));
+
+      if (chatAttempt.status >= 500) markNodeDown("hf-router", `HTTP ${chatAttempt.status}`);
+      if (chatAttempt.status === 429 || chatAttempt.status === 503) {
+        return { ok: false as const, error: mapUpstreamError(chatAttempt) };
+      }
+
+      if (!shouldTryDirectModelFallback(chatAttempt)) {
+        continue;
+      }
     }
 
-    if (!shouldTryDirectModelFallback(chatAttempt)) {
-      continue;
-    }
+    if (!isNodeUp("hf-direct")) continue;
 
     const directAttempt = await callHuggingFaceDirect({
       token: params.token,
-      model,
+      model: cand.hf_model_id,
       prompt: cleanPrompt,
     });
     attempts.push(directAttempt);
@@ -192,7 +261,8 @@ export async function askSovereignUpstream(params: { token: string; prompt: stri
       return { ok: true as const, lane, text: directAttempt.text };
     }
 
-    console.error("HF direct error", directAttempt.status, model, directAttempt.body.slice(0, 300));
+    console.error("HF direct error", directAttempt.status, cand.hf_model_id, directAttempt.body.slice(0, 300));
+    if (directAttempt.status >= 500) markNodeDown("hf-direct", `HTTP ${directAttempt.status}`);
 
     if (directAttempt.status === 429 || directAttempt.status === 503) {
       return { ok: false as const, error: mapUpstreamError(directAttempt) };

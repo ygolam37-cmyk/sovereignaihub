@@ -14,7 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      model_registry: {
+        Row: {
+          created_at: string
+          display_name: string
+          hf_model_id: string
+          id: string
+          lane: Database["public"]["Enums"]["model_lane"]
+          last_verified_at: string | null
+          manifest_sha: string | null
+          notes: string | null
+          status: Database["public"]["Enums"]["model_status"]
+          submitted_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          hf_model_id: string
+          id?: string
+          lane: Database["public"]["Enums"]["model_lane"]
+          last_verified_at?: string | null
+          manifest_sha?: string | null
+          notes?: string | null
+          status?: Database["public"]["Enums"]["model_status"]
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          hf_model_id?: string
+          id?: string
+          lane?: Database["public"]["Enums"]["model_lane"]
+          last_verified_at?: string | null
+          manifest_sha?: string | null
+          notes?: string | null
+          status?: Database["public"]["Enums"]["model_status"]
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      peer_nodes: {
+        Row: {
+          capabilities: Json
+          created_at: string
+          id: string
+          last_heartbeat: string
+          node_key: string
+        }
+        Insert: {
+          capabilities?: Json
+          created_at?: string
+          id?: string
+          last_heartbeat?: string
+          node_key: string
+        }
+        Update: {
+          capabilities?: Json
+          created_at?: string
+          id?: string
+          last_heartbeat?: string
+          node_key?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +88,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      model_lane: "fast" | "reasoning" | "code" | "creative"
+      model_status: "pending" | "approved" | "quarantined" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +216,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      model_lane: ["fast", "reasoning", "code", "creative"],
+      model_status: ["pending", "approved", "quarantined", "rejected"],
+    },
   },
 } as const
