@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { listModels, submitModel, verifyModel } from "@/lib/registry.functions";
-import {
-  detectPeerCapabilities,
-  isPeerNodeActive,
-  startPeerNode,
-  stopPeerNode,
-} from "@/lib/peer-node.client";
+
+type PeerMod = typeof import("@/lib/peer-node.client");
+async function loadPeer(): Promise<PeerMod> {
+  return await import("@/lib/peer-node.client");
+}
 
 export const Route = createFileRoute("/_authenticated/models")({
   component: ModelsPage,
@@ -63,7 +62,7 @@ function ModelsPage() {
   const [notes, setNotes] = useState("");
 
   const [peerOn, setPeerOn] = useState(false);
-  const [caps] = useState(() => detectPeerCapabilities());
+  const [caps, setCaps] = useState<{ webgpu: boolean; webrtc: boolean }>({ webgpu: false, webrtc: false });
 
   const refresh = useCallback(async () => {
     const r = await load();
@@ -72,7 +71,10 @@ function ModelsPage() {
 
   useEffect(() => {
     refresh();
-    setPeerOn(isPeerNodeActive());
+    loadPeer().then((m) => {
+      setCaps(m.detectPeerCapabilities());
+      setPeerOn(m.isPeerNodeActive());
+    });
   }, [refresh]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -115,12 +117,13 @@ function ModelsPage() {
   };
 
   const togglePeer = async () => {
+    const m = await loadPeer();
     if (peerOn) {
-      stopPeerNode();
+      m.stopPeerNode();
       setPeerOn(false);
       toast.info("Peer node stopped.");
     } else {
-      const r = await startPeerNode();
+      const r = await m.startPeerNode();
       if (r.ok) {
         setPeerOn(true);
         toast.success("Peer node online — heartbeating to the network.");
