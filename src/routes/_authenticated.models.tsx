@@ -49,13 +49,27 @@ function StatusBadge({ status }: { status: Model["status"] }) {
   );
 }
 
+type Verification = {
+  id: string;
+  previous_sha: string | null;
+  current_sha: string | null;
+  drift: boolean;
+  action: string;
+  notes: string | null;
+  checked_at: string;
+};
+
 function ModelsPage() {
   const load = useServerFn(listModels);
   const submit = useServerFn(submitModel);
   const verify = useServerFn(verifyModel);
+  const loadHistory = useServerFn(listVerifications);
   const [models, setModels] = useState<Model[]>([]);
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [history, setHistory] = useState<Record<string, Verification[]>>({});
+  const [historyLoading, setHistoryLoading] = useState<string | null>(null);
 
   const [hfId, setHfId] = useState("");
   const [displayName, setDisplayName] = useState("");
