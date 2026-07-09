@@ -62,7 +62,7 @@ function ModelsPage() {
   const [notes, setNotes] = useState("");
 
   const [peerOn, setPeerOn] = useState(false);
-  const [caps] = useState(() => detectPeerCapabilities());
+  const [caps, setCaps] = useState<{ webgpu: boolean; webrtc: boolean }>({ webgpu: false, webrtc: false });
 
   const refresh = useCallback(async () => {
     const r = await load();
@@ -71,7 +71,10 @@ function ModelsPage() {
 
   useEffect(() => {
     refresh();
-    setPeerOn(isPeerNodeActive());
+    loadPeer().then((m) => {
+      setCaps(m.detectPeerCapabilities());
+      setPeerOn(m.isPeerNodeActive());
+    });
   }, [refresh]);
 
   const onSubmit = async (e: React.FormEvent) => {
