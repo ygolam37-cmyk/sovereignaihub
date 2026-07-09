@@ -83,24 +83,71 @@ export const verifyModel = createServerFn({ method: "POST" })
       .eq("hf_model_id", data.hfModelId)
       .maybeSingle();
 
-    const check = await verifyModelSha(data.hfModelId, row?.manifest_sha ?? null);
-    if (!check.ok || check.drift) {
+    const previousSha = row?.manifest_sha ?? null;
+    const check = await verifyModelSha(data.hfModelId, previousSha);
+    const now = new Date().toISOString();
+
+    let action: "verified" | "quarantined" | "unreachable" | "pinned";
+    let notes: string | null = null;
+
+    if (!check.ok && !check.currentSha) {
+      action = "unreachable";
+      notes = "HF manifest unreachable";
       await supabaseAdmin
         .from("model_registry")
-        .update({
-          status: check.drift ? "quarantined" : "pending",
-          last_verified_at: new Date().toISOString(),
-          notes: check.drift ? `SHA drift detected — quarantined at ${new Date().toISOString()}` : null,
-        })
+        .update({ status: "pending", last_verified_at: now, notes })
         .eq("hf_model_id", data.hfModelId);
-      return { ok: false as const, drift: check.drift, currentSha: check.currentSha };
+    } else if (check.drift) {
+      action = "quarantined";
+      notes = `SHA drift: ${previousSha?.slice(0, 10)}… → ${check.currentSha?.slice(0, 10)}…`;
+      await supabaseAdmin
+        .from("model_registry")
+        .update({ status: "quarantined", last_verified_at: now, notes })
+        .eq("hf_model_id", data.hfModelId);
+    } else if (!previousSha) {
+      action = "pinned";
+      notes = `Pinned initial SHA ${check.currentSha?.slice(0, 10)}…`;
+      await supabaseAdmin
+        .from("model_registry")
+        .update({ manifest_sha: check.currentSha, last_verified_at: now })
+        .eq("hf_model_id", data.hfModelId);
+    } else {
+      action = "verified";
+      await supabaseAdmin
+        .from("model_registry")
+        .update({ manifest_sha: check.currentSha, last_verified_at: now })
+        .eq("hf_model_id", data.hfModelId);
     }
 
-    await supabaseAdmin
-      .from("model_registry")
-      .update({ manifest_sha: check.currentSha, last_verified_at: new Date().toISOString() })
-      .eq("hf_model_id", data.hfModelId);
+    await supabaseAdmin.from("model_verifications").insert({
+      hf_model_id: data.hfModelId,
+      previous_sha: previousSha,
+      current_sha: check.currentSha,
+      drift: check.drift,
+      action,
+      notes,
+      checked_at: now,
+    });
+
+    if (action === "unreachable") return { ok: false as const, drift: false, currentSha: null };
+    if (action === "quarantined") return { ok: false as const, drift: true, currentSha: check.currentSha };
     return { ok: true as const, sha: check.currentSha };
+  });
+
+const HistoryInput = z.object({ hfModelId: z.string().min(1), limit: z.number().int().min(1).max(50).optional() });
+
+export const listVerifications = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => HistoryInput.parse(d))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin
+      .from("model_verifications")
+      .select("id,previous_sha,current_sha,drift,action,notes,checked_at")
+      .eq("hf_model_id", data.hfModelId)
+      .order("checked_at", { ascending: false })
+      .limit(data.limit ?? 15);
+    if (error) return { ok: false as const, error: error.message, entries: [] };
+    return { ok: true as const, entries: rows ?? [] };
   });
 
 const PeerInput = z.object({
