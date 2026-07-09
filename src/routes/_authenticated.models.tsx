@@ -117,12 +117,13 @@ function ModelsPage() {
   };
 
   const togglePeer = async () => {
+    const m = await loadPeer();
     if (peerOn) {
-      stopPeerNode();
+      m.stopPeerNode();
       setPeerOn(false);
       toast.info("Peer node stopped.");
     } else {
-      const r = await startPeerNode();
+      const r = await m.startPeerNode();
       if (r.ok) {
         setPeerOn(true);
         toast.success("Peer node online — heartbeating to the network.");
