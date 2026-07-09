@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { listModels, submitModel, verifyModel } from "@/lib/registry.functions";
 
-type PeerMod = typeof import("@/lib/peer-node");
+type PeerMod = typeof import("@/lib/peer-node.ts");
 async function loadPeer(): Promise<PeerMod> {
-  return await import("@/lib/peer-node");
+  return await import("@/lib/peer-node.ts");
 }
 
 export const Route = createFileRoute("/_authenticated/models")({
