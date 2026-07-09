@@ -7,7 +7,8 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { listModels, submitModel, verifyModel } from "@/lib/registry.functions";
+import { listModels, submitModel, verifyModel, listVerifications } from "@/lib/registry.functions";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 type PeerMod = typeof import("@/lib/peer-node.ts");
 async function loadPeer(): Promise<PeerMod> {
