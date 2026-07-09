@@ -1,3 +1,4 @@
+import React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -7,7 +8,8 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { listModels, submitModel, verifyModel } from "@/lib/registry.functions";
+import { listModels, submitModel, verifyModel, listVerifications } from "@/lib/registry.functions";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 type PeerMod = typeof import("@/lib/peer-node.ts");
 async function loadPeer(): Promise<PeerMod> {
@@ -48,13 +50,27 @@ function StatusBadge({ status }: { status: Model["status"] }) {
   );
 }
 
+type Verification = {
+  id: string;
+  previous_sha: string | null;
+  current_sha: string | null;
+  drift: boolean;
+  action: string;
+  notes: string | null;
+  checked_at: string;
+};
+
 function ModelsPage() {
   const load = useServerFn(listModels);
   const submit = useServerFn(submitModel);
   const verify = useServerFn(verifyModel);
+  const loadHistory = useServerFn(listVerifications);
   const [models, setModels] = useState<Model[]>([]);
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [history, setHistory] = useState<Record<string, Verification[]>>({});
+  const [historyLoading, setHistoryLoading] = useState<string | null>(null);
 
   const [hfId, setHfId] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -103,6 +119,25 @@ function ModelsPage() {
     }
   };
 
+  const fetchHistory = useCallback(async (hfModelId: string) => {
+    setHistoryLoading(hfModelId);
+    try {
+      const r = await loadHistory({ data: { hfModelId } });
+      if (r.ok) setHistory((h) => ({ ...h, [hfModelId]: r.entries as Verification[] }));
+    } finally {
+      setHistoryLoading(null);
+    }
+  }, [loadHistory]);
+
+  const toggleExpand = async (hfModelId: string) => {
+    if (expanded === hfModelId) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(hfModelId);
+    if (!history[hfModelId]) await fetchHistory(hfModelId);
+  };
+
   const onVerify = async (hf_model_id: string) => {
     setVerifying(hf_model_id);
     try {
@@ -110,7 +145,7 @@ function ModelsPage() {
       if (r.ok) toast.success(`Verified. SHA ${r.sha?.slice(0, 12)}…`);
       else if (r.drift) toast.error("SHA drift — model auto-quarantined.");
       else toast.error("Manifest unreachable.");
-      await refresh();
+      await Promise.all([refresh(), fetchHistory(hf_model_id)]);
     } finally {
       setVerifying(null);
     }
@@ -174,33 +209,108 @@ function ModelsPage() {
                     </td>
                   </tr>
                 )}
-                {models.map((m) => (
-                  <tr key={m.id} className="border-b border-border/40 last:border-0">
-                    <td className="px-3 py-2">
-                      <div className="font-medium">{m.display_name}</div>
-                      <div className="text-[11px] text-muted-foreground">{m.hf_model_id}</div>
-                    </td>
-                    <td className="px-3 py-2 text-xs">{m.lane}</td>
-                    <td className="px-3 py-2"><StatusBadge status={m.status} /></td>
-                    <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">
-                      {m.manifest_sha ? `${m.manifest_sha.slice(0, 10)}…` : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => onVerify(m.hf_model_id)}
-                        disabled={verifying === m.hf_model_id}
-                      >
-                        {verifying === m.hf_model_id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          "Verify"
-                        )}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                {models.map((m) => {
+                  const isOpen = expanded === m.hf_model_id;
+                  const entries = history[m.hf_model_id];
+                  return (
+                    <React.Fragment key={m.id}>
+                      <tr className="border-b border-border/40">
+                        <td className="px-3 py-2">
+                          <button
+                            onClick={() => toggleExpand(m.hf_model_id)}
+                            className="flex items-start gap-1 text-left hover:text-gold"
+                          >
+                            {isOpen ? (
+                              <ChevronDown className="mt-0.5 h-3 w-3 shrink-0" />
+                            ) : (
+                              <ChevronRight className="mt-0.5 h-3 w-3 shrink-0" />
+                            )}
+                            <span>
+                              <div className="font-medium">{m.display_name}</div>
+                              <div className="text-[11px] text-muted-foreground">{m.hf_model_id}</div>
+                            </span>
+                          </button>
+                        </td>
+                        <td className="px-3 py-2 text-xs">{m.lane}</td>
+                        <td className="px-3 py-2"><StatusBadge status={m.status} /></td>
+                        <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">
+                          {m.manifest_sha ? `${m.manifest_sha.slice(0, 10)}…` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onVerify(m.hf_model_id)}
+                            disabled={verifying === m.hf_model_id}
+                          >
+                            {verifying === m.hf_model_id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              "Verify"
+                            )}
+                          </Button>
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="border-b border-border/40 bg-background/40">
+                          <td colSpan={5} className="px-3 py-3">
+                            <div className="mb-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+                              Verification history
+                            </div>
+                            {historyLoading === m.hf_model_id && !entries ? (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+                              </div>
+                            ) : !entries || entries.length === 0 ? (
+                              <div className="text-xs text-muted-foreground">
+                                No verifications recorded yet. Run Verify to create the first entry.
+                              </div>
+                            ) : (
+                              <ul className="space-y-1.5">
+                                {entries.map((e) => (
+                                  <li
+                                    key={e.id}
+                                    className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border/40 px-2 py-1.5 text-[11px]"
+                                  >
+                                    <span className="font-mono text-muted-foreground">
+                                      {new Date(e.checked_at).toLocaleString()}
+                                    </span>
+                                    <span
+                                      className={
+                                        e.action === "quarantined"
+                                          ? "rounded border border-orange-400/40 px-1.5 py-0.5 uppercase tracking-wider text-orange-400"
+                                          : e.action === "unreachable"
+                                          ? "rounded border border-red-400/40 px-1.5 py-0.5 uppercase tracking-wider text-red-400"
+                                          : e.action === "pinned"
+                                          ? "rounded border border-gold/40 px-1.5 py-0.5 uppercase tracking-wider text-gold"
+                                          : "rounded border border-border px-1.5 py-0.5 uppercase tracking-wider text-muted-foreground"
+                                      }
+                                    >
+                                      {e.action}
+                                    </span>
+                                    {e.drift && (
+                                      <span className="rounded border border-orange-400/40 px-1.5 py-0.5 uppercase tracking-wider text-orange-400">
+                                        drift
+                                      </span>
+                                    )}
+                                    <span className="font-mono text-muted-foreground">
+                                      {e.previous_sha ? e.previous_sha.slice(0, 10) : "—"}
+                                      {" → "}
+                                      {e.current_sha ? e.current_sha.slice(0, 10) : "—"}
+                                    </span>
+                                    {e.notes && (
+                                      <span className="text-muted-foreground">{e.notes}</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

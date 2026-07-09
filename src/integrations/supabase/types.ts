@@ -56,6 +56,39 @@ export type Database = {
         }
         Relationships: []
       }
+      model_verifications: {
+        Row: {
+          action: string
+          checked_at: string
+          current_sha: string | null
+          drift: boolean
+          hf_model_id: string
+          id: string
+          notes: string | null
+          previous_sha: string | null
+        }
+        Insert: {
+          action: string
+          checked_at?: string
+          current_sha?: string | null
+          drift?: boolean
+          hf_model_id: string
+          id?: string
+          notes?: string | null
+          previous_sha?: string | null
+        }
+        Update: {
+          action?: string
+          checked_at?: string
+          current_sha?: string | null
+          drift?: boolean
+          hf_model_id?: string
+          id?: string
+          notes?: string | null
+          previous_sha?: string | null
+        }
+        Relationships: []
+      }
       peer_nodes: {
         Row: {
           capabilities: Json
