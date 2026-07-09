@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { listModels, submitModel, verifyModel } from "@/lib/registry.functions";
-import {
-  detectPeerCapabilities,
-  isPeerNodeActive,
-  startPeerNode,
-  stopPeerNode,
-} from "@/lib/peer-node.client";
+
+type PeerMod = typeof import("@/lib/peer-node.client");
+async function loadPeer(): Promise<PeerMod> {
+  return await import("@/lib/peer-node.client");
+}
 
 export const Route = createFileRoute("/_authenticated/models")({
   component: ModelsPage,
