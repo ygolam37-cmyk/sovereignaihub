@@ -118,6 +118,25 @@ function ModelsPage() {
     }
   };
 
+  const fetchHistory = useCallback(async (hfModelId: string) => {
+    setHistoryLoading(hfModelId);
+    try {
+      const r = await loadHistory({ data: { hfModelId } });
+      if (r.ok) setHistory((h) => ({ ...h, [hfModelId]: r.entries as Verification[] }));
+    } finally {
+      setHistoryLoading(null);
+    }
+  }, [loadHistory]);
+
+  const toggleExpand = async (hfModelId: string) => {
+    if (expanded === hfModelId) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(hfModelId);
+    if (!history[hfModelId]) await fetchHistory(hfModelId);
+  };
+
   const onVerify = async (hf_model_id: string) => {
     setVerifying(hf_model_id);
     try {
@@ -125,7 +144,7 @@ function ModelsPage() {
       if (r.ok) toast.success(`Verified. SHA ${r.sha?.slice(0, 12)}…`);
       else if (r.drift) toast.error("SHA drift — model auto-quarantined.");
       else toast.error("Manifest unreachable.");
-      await refresh();
+      await Promise.all([refresh(), fetchHistory(hf_model_id)]);
     } finally {
       setVerifying(null);
     }
