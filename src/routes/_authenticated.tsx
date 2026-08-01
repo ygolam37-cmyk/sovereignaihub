@@ -1,5 +1,7 @@
 import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { hasLocalAuth } from "@/lib/auth-context";
+import { PeerAutoConnect } from "@/components/PeerAutoConnect";
+
 
 /**
  * Pathless layout route. Any file named `_authenticated.<name>.tsx`
@@ -16,5 +18,11 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
   },
-  component: () => <Outlet />,
+  component: () => (
+    <>
+      <PeerAutoConnect />
+      <Outlet />
+    </>
+  ),
 });
+

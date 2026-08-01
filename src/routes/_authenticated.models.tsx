@@ -87,11 +87,20 @@ function ModelsPage() {
 
   useEffect(() => {
     refresh();
+    let alive = true;
+    let t: ReturnType<typeof setInterval> | null = null;
     loadPeer().then((m) => {
+      if (!alive) return;
       setCaps(m.detectPeerCapabilities());
       setPeerOn(m.isPeerNodeActive());
+      t = setInterval(() => setPeerOn(m.isPeerNodeActive()), 3000);
     });
+    return () => {
+      alive = false;
+      if (t) clearInterval(t);
+    };
   }, [refresh]);
+
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,22 +160,6 @@ function ModelsPage() {
     }
   };
 
-  const togglePeer = async () => {
-    const m = await loadPeer();
-    if (peerOn) {
-      m.stopPeerNode();
-      setPeerOn(false);
-      toast.info("Peer node stopped.");
-    } else {
-      const r = await m.startPeerNode();
-      if (r.ok) {
-        setPeerOn(true);
-        toast.success("Peer node online — heartbeating to the network.");
-      } else {
-        toast.error(r.error ?? "Failed to start peer node.");
-      }
-    }
-  };
 
   return (
     <div className="min-h-screen">
@@ -360,10 +353,14 @@ function ModelsPage() {
 
           <div className="glass space-y-3 rounded-xl p-4">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Radio className="h-4 w-4 text-gold" /> Peer node mode
+              <Radio className="h-4 w-4 text-gold" /> Peer node
+              <span className="ml-auto inline-flex items-center gap-1 rounded-md border border-gold/40 px-2 py-0.5 text-[10px] uppercase tracking-wider text-gold">
+                <span className={`inline-block h-1.5 w-1.5 rounded-full bg-gold ${peerOn ? "animate-pulse" : ""}`} aria-hidden />
+                {peerOn ? "connected" : "connecting"}
+              </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              Opt in to broadcast this device as a live peer node. Contributes to network health & availability signalling.
+              This device joins the P2P network automatically on login and heartbeats to the network — participation is mandatory.
             </div>
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               <Cpu className="h-3 w-3" />
@@ -371,14 +368,8 @@ function ModelsPage() {
               &nbsp;·&nbsp;
               WebRTC: <span className={caps.webrtc ? "text-gold" : ""}>{caps.webrtc ? "yes" : "no"}</span>
             </div>
-            <Button
-              onClick={togglePeer}
-              variant={peerOn ? "outline" : "default"}
-              className={peerOn ? "" : "w-full bg-gradient-gold text-primary-foreground shadow-gold hover:opacity-90"}
-            >
-              {peerOn ? "Stop peer node" : "Start peer node"}
-            </Button>
           </div>
+
         </aside>
       </main>
     </div>
