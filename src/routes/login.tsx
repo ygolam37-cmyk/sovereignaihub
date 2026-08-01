@@ -7,29 +7,23 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { RefreshCw, ShieldCheck } from "lucide-react";
+import { CODE_LEN, generateCode } from "@/lib/access-code";
 
 export const Route = createFileRoute("/login")({
   component: Login,
 });
 
-// 12-char alphanumeric (mixed case + digits), cryptographically random, ephemeral.
-const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-const CODE_LEN = 12;
-
-function generateCode(): string {
-  const buf = new Uint32Array(CODE_LEN);
-  crypto.getRandomValues(buf);
-  let out = "";
-  for (let i = 0; i < CODE_LEN; i++) out += ALPHABET[buf[i] % ALPHABET.length];
-  return out;
-}
-
 function Login() {
   const { signInWithCode, user } = useAuth();
   const navigate = useNavigate();
-  const [code, setCode] = useState<string>(() => generateCode());
+  const [code, setCode] = useState<string>("");
   const [entered, setEntered] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Generate on the client only — keeps SSR markup stable.
+  useEffect(() => {
+    setCode(generateCode());
+  }, []);
 
   useEffect(() => {
     if (user) navigate({ to: "/dashboard" });
@@ -41,7 +35,7 @@ function Login() {
   }, []);
 
   const matched = useMemo(
-    () => entered.length === code.length && entered === code,
+    () => code.length > 0 && entered.length === code.length && entered === code,
     [entered, code],
   );
 
@@ -82,7 +76,7 @@ function Login() {
                   aria-live="polite"
                   className="flex-1 select-all rounded-md border border-gold/40 bg-background/60 px-3 py-2 font-mono text-lg tracking-[0.25em] text-gold"
                 >
-                  {code}
+                  {code || "…"}
                 </div>
                 <Button
                   type="button"
