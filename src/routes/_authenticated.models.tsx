@@ -151,22 +151,6 @@ function ModelsPage() {
     }
   };
 
-  const togglePeer = async () => {
-    const m = await loadPeer();
-    if (peerOn) {
-      m.stopPeerNode();
-      setPeerOn(false);
-      toast.info("Peer node stopped.");
-    } else {
-      const r = await m.startPeerNode();
-      if (r.ok) {
-        setPeerOn(true);
-        toast.success("Peer node online — heartbeating to the network.");
-      } else {
-        toast.error(r.error ?? "Failed to start peer node.");
-      }
-    }
-  };
 
   return (
     <div className="min-h-screen">
