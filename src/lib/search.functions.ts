@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { searchDuckDuckGo } from "./search.server";
 
 const InputSchema = z.object({
@@ -9,7 +8,6 @@ const InputSchema = z.object({
 });
 
 export const webSearch = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data }) => {
     const hits = await searchDuckDuckGo(data.query, data.limit ?? 5);
@@ -17,7 +15,6 @@ export const webSearch = createServerFn({ method: "POST" })
   });
 
 export const networkStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
   .handler(async () => {
     const { healthSnapshot } = await import("./node-routing.server");
     const providerHealth = healthSnapshot();
