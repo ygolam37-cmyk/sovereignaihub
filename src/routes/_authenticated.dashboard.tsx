@@ -9,7 +9,8 @@ import { useAuth } from "@/lib/auth-context";
 import { useServerFn } from "@tanstack/react-start";
 import { askSovereign } from "@/lib/ai.functions";
 import { toast } from "sonner";
-import { Shield, Send, LogOut, Sparkles, ExternalLink, Network } from "lucide-react";
+import { Shield, Send, Sparkles, ExternalLink, Network } from "lucide-react";
+import { ExitGate } from "@/components/ExitGate";
 
 // Protected by src/routes/_authenticated.tsx layout guard.
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -20,7 +21,7 @@ type Source = { title: string; url: string; snippet: string };
 type Msg = { role: "user" | "assistant"; content: string; lane?: string; sources?: Source[]; audit?: string };
 
 function Dashboard() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const ask = useServerFn(askSovereign);
   const [input, setInput] = useState("");
@@ -78,9 +79,7 @@ function Dashboard() {
                 <Network className="mr-2 h-4 w-4" /> Models
               </Button>
             </Link>
-            <Button variant="ghost" size="sm" onClick={() => signOut()}>
-              <LogOut className="mr-2 h-4 w-4" /> Sign out
-            </Button>
+            <ExitGate />
           </div>
         </div>
       </header>
