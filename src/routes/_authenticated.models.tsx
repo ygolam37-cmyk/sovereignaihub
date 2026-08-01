@@ -87,11 +87,20 @@ function ModelsPage() {
 
   useEffect(() => {
     refresh();
+    let alive = true;
+    let t: ReturnType<typeof setInterval> | null = null;
     loadPeer().then((m) => {
+      if (!alive) return;
       setCaps(m.detectPeerCapabilities());
       setPeerOn(m.isPeerNodeActive());
+      t = setInterval(() => setPeerOn(m.isPeerNodeActive()), 3000);
     });
+    return () => {
+      alive = false;
+      if (t) clearInterval(t);
+    };
   }, [refresh]);
+
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
