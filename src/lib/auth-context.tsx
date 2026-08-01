@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { codesMatch } from "@/lib/access-code";
 
 type LocalUser = { id: string; label: string };
 
@@ -6,7 +7,8 @@ type AuthCtx = {
   user: LocalUser | null;
   loading: boolean;
   signInWithCode: (generated: string, entered: string) => { ok: true } | { ok: false; error: string };
-  signOut: () => void;
+  /** Symmetric exit: leaving the P2P network requires the same code verification. */
+  signOutWithCode: (generated: string, entered: string) => { ok: true } | { ok: false; error: string };
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -35,34 +37,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+  // Mandatory persistent P2P state: warn on any attempt to leave the network
+  // without the explicit code-verified logout.
+  useEffect(() => {
+    if (!user) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [user]);
+
   const signInWithCode = useCallback((generated: string, entered: string) => {
-    // Strict, constant-length, character-by-character match. No trimming, no case fold.
-    if (!generated || generated.length !== entered.length) {
-      return { ok: false as const, error: "Access denied — code mismatch." };
-    }
-    let diff = 0;
-    for (let i = 0; i < generated.length; i++) {
-      diff |= generated.charCodeAt(i) ^ entered.charCodeAt(i);
-    }
-    if (diff !== 0) {
+    if (!codesMatch(generated, entered)) {
       return { ok: false as const, error: "Access denied — code mismatch." };
     }
     const u: LocalUser = {
       id: crypto.randomUUID(),
-      label: `Sovereign session · ${generated.slice(0, 4)}…`,
+      label: `Sovereign node · ${generated.slice(0, 4)}…`,
     };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     setUser(u);
     return { ok: true as const };
   }, []);
 
-  const signOut = useCallback(() => {
+  const signOutWithCode = useCallback((generated: string, entered: string) => {
+    if (!codesMatch(generated, entered)) {
+      return { ok: false as const, error: "Exit denied — code mismatch. You remain on the P2P network." };
+    }
     sessionStorage.removeItem(STORAGE_KEY);
     setUser(null);
+    return { ok: true as const };
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, loading, signInWithCode, signOut }}>
+    <Ctx.Provider value={{ user, loading, signInWithCode, signOutWithCode }}>
       {children}
     </Ctx.Provider>
   );
