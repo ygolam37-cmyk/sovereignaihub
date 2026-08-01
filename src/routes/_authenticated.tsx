@@ -8,7 +8,7 @@ import { PeerAutoConnect } from "@/components/PeerAutoConnect";
  * (or nested under `_authenticated/`) is automatically gated by this guard.
  * The URL does not include `_authenticated` — e.g. `_authenticated.dashboard.tsx` → `/dashboard`.
  *
- * Auth is client-side only (sessionStorage), so we disable SSR for this subtree
+ * Auth is client-side only (localStorage), so we disable SSR for this subtree
  * and run the check in `beforeLoad` — it fires before the route component renders.
  */
 export const Route = createFileRoute("/_authenticated")({

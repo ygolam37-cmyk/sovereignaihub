@@ -17,7 +17,7 @@ const STORAGE_KEY = "sovereign.localAuth.v1";
 export function hasLocalAuth(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return !!sessionStorage.getItem(STORAGE_KEY);
+    return !!localStorage.getItem(STORAGE_KEY);
   } catch {
     return false;
   }
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) setUser(JSON.parse(raw) as LocalUser);
     } catch {
       // ignore
@@ -37,17 +37,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  // Mandatory persistent P2P state: warn on any attempt to leave the network
-  // without the explicit code-verified logout.
+  // Keep tabs in sync: an explicit exit in one tab signs out everywhere.
   useEffect(() => {
-    if (!user) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY) return;
+      try {
+        setUser(e.newValue ? (JSON.parse(e.newValue) as LocalUser) : null);
+      } catch {
+        setUser(null);
+      }
     };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [user]);
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const signInWithCode = useCallback((generated: string, entered: string) => {
     if (!codesMatch(generated, entered)) {
@@ -57,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
       label: `Sovereign node · ${generated.slice(0, 4)}…`,
     };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     setUser(u);
     return { ok: true as const };
   }, []);
@@ -66,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!codesMatch(generated, entered)) {
       return { ok: false as const, error: "Exit denied — code mismatch. You remain on the P2P network." };
     }
-    sessionStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY);
     setUser(null);
     return { ok: true as const };
   }, []);
