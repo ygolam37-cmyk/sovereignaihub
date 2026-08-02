@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
+import { Route as AuthenticatedLogoutRouteImport } from './routes/_authenticated.logout'
 import { Route as AuthenticatedModelsRouteImport } from './routes/_authenticated.models'
 
 const IndexRoute = IndexRouteImport.update({
@@ -34,6 +35,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedLogoutRoute = AuthenticatedLogoutRouteImport.update({
+  id: '/logout',
+  path: '/logout',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedModelsRoute = AuthenticatedModelsRouteImport.update({
   id: '/models',
   path: '/models',
@@ -44,12 +50,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/logout': typeof AuthenticatedLogoutRoute
   '/models': typeof AuthenticatedModelsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/logout': typeof AuthenticatedLogoutRoute
   '/models': typeof AuthenticatedModelsRoute
 }
 export interface FileRoutesById {
@@ -58,19 +66,21 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/logout': typeof AuthenticatedLogoutRoute
   '/_authenticated/models': typeof AuthenticatedModelsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/dashboard' | '/models'
+  fullPaths: '/' | '/login' | '/dashboard' | '/logout' | '/models'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/dashboard' | '/models'
+  to: '/' | '/login' | '/dashboard' | '/logout' | '/models'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/login'
     | '/_authenticated/dashboard'
+    | '/_authenticated/logout'
     | '/_authenticated/models'
   fileRoutesById: FileRoutesById
 }
@@ -110,6 +120,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/logout': {
+      id: '/_authenticated/logout'
+      path: '/logout'
+      fullPath: '/logout'
+      preLoaderRoute: typeof AuthenticatedLogoutRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/models': {
       id: '/_authenticated/models'
       path: '/models'
@@ -122,11 +139,13 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedLogoutRoute: typeof AuthenticatedLogoutRoute
   AuthenticatedModelsRoute: typeof AuthenticatedModelsRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedLogoutRoute: AuthenticatedLogoutRoute,
   AuthenticatedModelsRoute: AuthenticatedModelsRoute,
 }
 
@@ -142,13 +161,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

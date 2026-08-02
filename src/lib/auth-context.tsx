@@ -1,46 +1,60 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { codesMatch } from "@/lib/access-code";
-
-type LocalUser = { id: string; label: string };
+import {
+  clearSession,
+  hasSessionMirror,
+  loadSession,
+  MIRROR_KEY,
+  persistedState,
+  requestPersistentStorage,
+  saveSession,
+  type LocalUser,
+  type PersistState,
+} from "@/lib/session-store";
 
 type AuthCtx = {
   user: LocalUser | null;
   loading: boolean;
+  /** "denied" means the browser refused durable storage — prompt the user. */
+  persist: PersistState;
+  requestPersist: () => Promise<PersistState>;
   signInWithCode: (generated: string, entered: string) => { ok: true } | { ok: false; error: string };
-  /** Symmetric exit: leaving the P2P network requires the same code verification. */
+  /** Manual logout only: requires the displayed code to be retyped exactly. */
   signOutWithCode: (generated: string, entered: string) => { ok: true } | { ok: false; error: string };
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
-const STORAGE_KEY = "sovereign.localAuth.v1";
 
+/** Synchronous guard check (route beforeLoad). */
 export function hasLocalAuth(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return !!localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return false;
-  }
+  return hasSessionMirror();
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<LocalUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [persist, setPersist] = useState<PersistState>("unsupported");
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setUser(JSON.parse(raw) as LocalUser);
-    } catch {
-      // ignore
-    }
-    setLoading(false);
+    let cancelled = false;
+    (async () => {
+      const restored = await loadSession();
+      if (!cancelled) {
+        setUser(restored);
+        setLoading(false);
+      }
+      const state = restored ? await requestPersistentStorage() : await persistedState();
+      if (!cancelled) setPersist(state);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Keep tabs in sync: an explicit exit in one tab signs out everywhere.
+  // Keep tabs in sync: an explicit manual logout in one tab signs out everywhere.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== STORAGE_KEY) return;
+      if (e.key !== MIRROR_KEY) return;
       try {
         setUser(e.newValue ? (JSON.parse(e.newValue) as LocalUser) : null);
       } catch {
@@ -51,6 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  const requestPersist = useCallback(async () => {
+    const state = await requestPersistentStorage();
+    setPersist(state);
+    return state;
+  }, []);
+
   const signInWithCode = useCallback((generated: string, entered: string) => {
     if (!codesMatch(generated, entered)) {
       return { ok: false as const, error: "Access denied — code mismatch." };
@@ -59,22 +79,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: crypto.randomUUID(),
       label: `Sovereign node · ${generated.slice(0, 4)}…`,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     setUser(u);
+    void saveSession(u).then(setPersist);
     return { ok: true as const };
   }, []);
 
   const signOutWithCode = useCallback((generated: string, entered: string) => {
     if (!codesMatch(generated, entered)) {
-      return { ok: false as const, error: "Exit denied — code mismatch. You remain on the P2P network." };
+      return { ok: false as const, error: "Logout denied — code mismatch. Your session stays active." };
     }
-    localStorage.removeItem(STORAGE_KEY);
     setUser(null);
+    void clearSession();
     return { ok: true as const };
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, loading, signInWithCode, signOutWithCode }}>
+    <Ctx.Provider value={{ user, loading, persist, requestPersist, signInWithCode, signOutWithCode }}>
       {children}
     </Ctx.Provider>
   );
