@@ -4,6 +4,8 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Shield, Lock, Cpu, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { UniversalShareButton } from "@/components/UniversalShareButton";
+
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -50,6 +52,14 @@ function Landing() {
             </Link>
           </div>
         </section>
+
+        <section className="mx-auto mt-14 max-w-xl">
+          <UniversalShareButton
+            title="Sovereign AI"
+            payload={{ from: "landing", route: "/" }}
+          />
+        </section>
+
 
         <section className="mt-24 grid gap-5 sm:grid-cols-3">
           {[
