@@ -1,6 +1,8 @@
 import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { hasLocalAuth } from "@/lib/auth-context";
 import { PeerAutoConnect } from "@/components/PeerAutoConnect";
+import { PersistPrompt } from "@/components/PersistPrompt";
+
 
 
 /**
