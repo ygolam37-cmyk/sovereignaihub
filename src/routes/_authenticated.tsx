@@ -23,8 +23,10 @@ export const Route = createFileRoute("/_authenticated")({
   component: () => (
     <>
       <PeerAutoConnect />
+      <PersistPrompt />
       <Outlet />
     </>
   ),
 });
+
 
