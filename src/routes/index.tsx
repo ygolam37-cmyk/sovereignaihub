@@ -53,6 +53,14 @@ function Landing() {
           </div>
         </section>
 
+        <section className="mx-auto mt-14 max-w-xl">
+          <UniversalShareButton
+            title="Sovereign AI"
+            payload={{ from: "landing", route: "/" }}
+          />
+        </section>
+
+
         <section className="mt-24 grid gap-5 sm:grid-cols-3">
           {[
             {
