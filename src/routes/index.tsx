@@ -4,6 +4,8 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Shield, Lock, Cpu, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { UniversalShareButton } from "@/components/UniversalShareButton";
+
 
 export const Route = createFileRoute("/")({
   component: Landing,
