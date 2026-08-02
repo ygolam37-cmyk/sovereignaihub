@@ -95,7 +95,7 @@ async function writeBackup(user: LocalUser) {
 
 async function readBackup(): Promise<LocalUser | null> {
   try {
-    const rec = await tx<{ iv: Uint8Array; ct: ArrayBuffer } | undefined>(STORE_BACKUP, "readonly", (s) =>
+    const rec = await tx<{ iv: Uint8Array<ArrayBuffer>; ct: ArrayBuffer } | undefined>(STORE_BACKUP, "readonly", (s) =>
       s.get(KEY_MAIN),
     );
     if (!rec) return null;
