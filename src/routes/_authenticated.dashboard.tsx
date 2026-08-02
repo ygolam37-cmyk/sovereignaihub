@@ -11,6 +11,8 @@ import { askSovereign } from "@/lib/ai.functions";
 import { toast } from "sonner";
 import { Shield, Send, Sparkles, ExternalLink, Network } from "lucide-react";
 import { ExitGate } from "@/components/ExitGate";
+import { UniversalShareButton } from "@/components/UniversalShareButton";
+
 
 // Protected by src/routes/_authenticated.tsx layout guard.
 export const Route = createFileRoute("/_authenticated/dashboard")({
