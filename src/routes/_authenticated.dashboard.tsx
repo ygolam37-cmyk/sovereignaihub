@@ -89,10 +89,12 @@ function Dashboard() {
           <Shield className="h-4 w-4 text-gold" />
           Identity firewall active — your name, email, and ID are stripped before any model is called.
         </div>
-
-
-
-
+        <div className="mb-4">
+          <UniversalShareButton
+            title="Sovereign conversation snapshot"
+            payload={{ messages: messages.map((m) => ({ role: m.role, content: m.content })) }}
+          />
+        </div>
 
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4">
           {messages.length === 0 && (
