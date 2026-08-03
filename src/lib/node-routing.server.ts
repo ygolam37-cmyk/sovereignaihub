@@ -1,8 +1,7 @@
-// In-memory per-worker health map for upstream provider nodes.
-// Best-effort — workers may not share state, but each will independently
-// mark failing nodes down for 60s and re-route.
+// In-memory per-worker health map for the sovereign's own subsystems.
+// There are no third-party providers left to track — only native components.
 
-type NodeId = "hf-router" | "hf-direct" | "lovable-ai";
+type NodeId = "native-engine" | "open-web" | "p2p-mesh";
 
 type Health = { downUntil: number; lastError?: string };
 
@@ -25,7 +24,7 @@ export function markNodeDown(id: NodeId, reason: string): void {
 }
 
 export function healthSnapshot(): Array<{ id: NodeId; up: boolean; reason?: string }> {
-  const ids: NodeId[] = ["hf-router", "hf-direct", "lovable-ai"];
+  const ids: NodeId[] = ["native-engine", "open-web", "p2p-mesh"];
   return ids.map((id) => {
     const h = health.get(id);
     const up = !h || Date.now() > h.downUntil;

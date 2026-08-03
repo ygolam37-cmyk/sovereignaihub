@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { reviewWorkerResponse } from "./manager.server";
 import { researchOpenSource } from "./search.server";
 
@@ -16,47 +16,24 @@ function assertScrubbed(text: string) {
   }
 }
 
-describe("Reasoning Audit privacy", () => {
+describe("Reasoning Audit privacy (native validator)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("scrubs PII the manager LLM leaks into its `reason` field", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({
-                    verdict: "rewrite",
-                    // Manager tries to quote user PII inside its audit note.
-                    reason:
-                      "user shared alice@example.com and phone +1 415-555-2671, aadhaar 1234 5678 9012, ssn 123-45-6789, card 4111 1111 1111 1111, addr 221 Baker Street",
-                    final: "Here is a safe answer.",
-                  }),
-                },
-              },
-            ],
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      ),
-    );
-
-    const review = await reviewWorkerResponse({
-      token: "t",
+  it("scrubs PII out of the draft and never quotes it in the audit", () => {
+    const review = reviewWorkerResponse({
       userPrompt: "hi my name is Alice Smith, email alice@example.com",
-      draft: "draft",
+      draft:
+        "Contact alice@example.com or +1 415-555-2671, aadhaar 1234 5678 9012, ssn 123-45-6789, card 4111 1111 1111 1111, addr 221 Baker Street",
     });
 
     expect(review.audit).toMatch(/Reasoning Audit/);
     assertScrubbed(review.audit);
-    // Redaction tokens prove the firewall ran on the audit string itself.
-    expect(review.audit).toMatch(/\[(email|id|phone|address|ssn|card)\]/);
+    assertScrubbed(review.final);
+    expect(review.final).toMatch(/\[(email|id|phone|address|ssn|card)\]/);
+    expect(review.verdict).toBe("rewrite");
   });
 
   it("keeps the research audit free of PII even when engine payloads are poisoned", async () => {
@@ -79,7 +56,6 @@ describe("Reasoning Audit privacy", () => {
 
     const research = await researchOpenSource("what happened today?", 3);
     assertScrubbed(research.audit.audit);
-    // The audit string should never quote raw hit content.
     expect(research.audit.audit).not.toContain("alice");
     expect(research.audit.audit).toMatch(/Reasoning Audit/);
   });
