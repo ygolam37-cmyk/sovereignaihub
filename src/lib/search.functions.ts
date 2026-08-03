@@ -14,45 +14,47 @@ export const webSearch = createServerFn({ method: "POST" })
     return { ok: true as const, hits };
   });
 
-export const networkStatus = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const { healthSnapshot } = await import("./node-routing.server");
-    const providerHealth = healthSnapshot();
-    const hfRouter = providerHealth.find((n) => n.id === "hf-router")?.up ?? true;
-    const hfDirect = providerHealth.find((n) => n.id === "hf-direct")?.up ?? true;
-    const hf = !!process.env.HF_TOKEN && (hfRouter || hfDirect);
+export const networkStatus = createServerFn({ method: "GET" }).handler(async () => {
+  const { healthSnapshot } = await import("./node-routing.server");
+  const health = healthSnapshot();
+  const engineUp = health.find((n) => n.id === "native-engine")?.up ?? true;
 
-    let ddg = false;
-    try {
-      const hits = await searchDuckDuckGo("lovable", 1, 3000);
-      ddg = hits.length > 0;
-    } catch {
-      ddg = false;
-    }
-    const lovableAi = !!process.env.LOVABLE_API_KEY;
+  let ddg = false;
+  try {
+    const hits = await searchDuckDuckGo("lovable", 1, 3000);
+    ddg = hits.length > 0;
+  } catch {
+    ddg = false;
+  }
 
-    // Live peer-node count (opt-in browsers heartbeating in the last 90s).
-    let peers = 0;
-    try {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const cutoff = new Date(Date.now() - 90_000).toISOString();
-      const { count } = await supabaseAdmin
-        .from("peer_nodes")
-        .select("node_key", { count: "exact", head: true })
-        .gt("last_heartbeat", cutoff);
-      peers = count ?? 0;
-    } catch {
-      peers = 0;
-    }
-
-    const nodes = [
-      { id: "lovable", label: "Lovable AI", up: lovableAi },
-      { id: "hf", label: "Hugging Face", up: hf },
-      { id: "ddg", label: "DuckDuckGo", up: ddg },
-      { id: "peers", label: `Peers (${peers})`, up: peers > 0 },
-    ];
-    const strength = Math.round(
-      (nodes.filter((n) => n.up).length / nodes.length) * 100,
+  // Live mesh: peer nodes heartbeating in the last 90s + shard coverage.
+  let peers = 0;
+  let coverage = 0;
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const cutoff = new Date(Date.now() - 90_000).toISOString();
+    const { data: live } = await supabaseAdmin
+      .from("peer_nodes")
+      .select("node_key")
+      .gt("last_heartbeat", cutoff);
+    peers = live?.length ?? 0;
+    const liveKeys = new Set((live ?? []).map((p) => p.node_key));
+    const { data: shards } = await supabaseAdmin.from("model_shards").select("id");
+    const { data: replicas } = await supabaseAdmin.from("shard_replicas").select("shard_id,node_key");
+    const held = new Set(
+      (replicas ?? []).filter((r) => liveKeys.has(r.node_key)).map((r) => r.shard_id),
     );
-    return { ok: true as const, nodes, strength, peers };
-  });
+    coverage = shards?.length ? Math.round((held.size / shards.length) * 100) : 0;
+  } catch {
+    peers = 0;
+  }
+
+  const nodes = [
+    { id: "engine", label: "Native engine", up: engineUp },
+    { id: "web", label: "Open web", up: ddg },
+    { id: "mesh", label: `Mesh (${peers})`, up: peers > 0 },
+    { id: "shards", label: `Shards ${coverage}%`, up: coverage > 0 },
+  ];
+  const strength = Math.round((nodes.filter((n) => n.up).length / nodes.length) * 100);
+  return { ok: true as const, nodes, strength, peers, coverage };
+});
