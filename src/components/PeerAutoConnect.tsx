@@ -1,15 +1,16 @@
 import { useEffect } from "react";
 
 /**
- * Mandatory P2P participation: every authenticated session joins the network
- * automatically on mount — no manual opt-in button.
+ * Mandatory P2P participation: every authenticated session joins the native
+ * mesh automatically — capability measurement, shard auto-download and peer
+ * serving all start without any manual opt-in.
  */
 export function PeerAutoConnect() {
   useEffect(() => {
     let stopped = false;
-    import("@/lib/peer-node.ts").then(async (m) => {
+    import("@/lib/mesh-engine").then(async (m) => {
       if (stopped) return;
-      if (!m.isPeerNodeActive()) await m.startPeerNode();
+      if (!m.isMeshRunning()) await m.startMesh();
     });
     return () => {
       stopped = true;
