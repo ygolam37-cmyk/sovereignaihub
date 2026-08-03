@@ -56,6 +56,44 @@ export type Database = {
         }
         Relationships: []
       }
+      model_shards: {
+        Row: {
+          created_at: string
+          id: string
+          idx: number
+          model_id: string
+          sha256: string
+          size_bytes: number
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idx: number
+          model_id: string
+          sha256: string
+          size_bytes?: number
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idx?: number
+          model_id?: string
+          sha256?: string
+          size_bytes?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_shards_model_id_fkey"
+            columns: ["model_id"]
+            isOneToOne: false
+            referencedRelation: "native_models"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       model_verifications: {
         Row: {
           action: string
@@ -89,6 +127,51 @@ export type Database = {
         }
         Relationships: []
       }
+      native_models: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          merkle_root: string | null
+          name: string
+          notes: string | null
+          shard_count: number
+          shard_size: number
+          size_bytes: number
+          status: string
+          submitted_by: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind?: string
+          merkle_root?: string | null
+          name: string
+          notes?: string | null
+          shard_count?: number
+          shard_size?: number
+          size_bytes?: number
+          status?: string
+          submitted_by?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          merkle_root?: string | null
+          name?: string
+          notes?: string | null
+          shard_count?: number
+          shard_size?: number
+          size_bytes?: number
+          status?: string
+          submitted_by?: string | null
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       peer_nodes: {
         Row: {
           capabilities: Json
@@ -96,6 +179,8 @@ export type Database = {
           id: string
           last_heartbeat: string
           node_key: string
+          score: number
+          tier: string
         }
         Insert: {
           capabilities?: Json
@@ -103,6 +188,8 @@ export type Database = {
           id?: string
           last_heartbeat?: string
           node_key: string
+          score?: number
+          tier?: string
         }
         Update: {
           capabilities?: Json
@@ -110,8 +197,42 @@ export type Database = {
           id?: string
           last_heartbeat?: string
           node_key?: string
+          score?: number
+          tier?: string
         }
         Relationships: []
+      }
+      shard_replicas: {
+        Row: {
+          id: string
+          node_key: string
+          shard_id: string
+          updated_at: string
+          verified: boolean
+        }
+        Insert: {
+          id?: string
+          node_key: string
+          shard_id: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Update: {
+          id?: string
+          node_key?: string
+          shard_id?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shard_replicas_shard_id_fkey"
+            columns: ["shard_id"]
+            isOneToOne: false
+            referencedRelation: "model_shards"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
