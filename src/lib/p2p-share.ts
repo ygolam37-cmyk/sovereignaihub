@@ -95,9 +95,29 @@ export function publishToMesh(snap: ShareSnapshot): void {
   }
 }
 
+/** Public production origin — never a gated `id-preview--*` sandbox URL. */
+export const PUBLIC_ORIGIN = "https://sovereignaihub.lovable.app";
+
+/**
+ * Resolve the origin used in share links. Lovable preview/sandbox hosts
+ * (`id-preview--*.lovable.app`, `*.lovableproject.com`, localhost) force a
+ * Lovable login for anyone else, so they are replaced by the public origin.
+ */
+export function shareOrigin(): string {
+  if (typeof window === "undefined") return PUBLIC_ORIGIN;
+  const { origin, hostname } = window.location;
+  const gated =
+    hostname.startsWith("id-preview--") ||
+    hostname.includes("-preview--") ||
+    hostname.endsWith(".lovableproject.com") ||
+    hostname.endsWith(".lovable.dev") ||
+    hostname === "localhost" ||
+    hostname === "127.0.0.1";
+  return gated ? PUBLIC_ORIGIN : origin;
+}
+
 export function buildShareUrl(snap: ShareSnapshot): string {
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}${UNIFIED_NAMESPACE}#${snap.domain}.${encodeSnapshot(snap)}`;
+  return `${shareOrigin()}${UNIFIED_NAMESPACE}#${snap.domain}.${encodeSnapshot(snap)}`;
 }
 
 export type HostResult = { snap: ShareSnapshot; url: string; ms: number };
