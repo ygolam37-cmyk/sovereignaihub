@@ -101,9 +101,10 @@ function attachChannel(peer: Peer, dc: RTCDataChannel) {
   };
   dc.onmessage = async (ev: MessageEvent<string | ArrayBuffer>) => {
     if (typeof ev.data === "string") {
-      let msg: { t?: string; rid?: string; sha?: string } | null = null;
+      type Ctl = { t?: string; rid?: string; sha?: string };
+      let msg: Ctl | null = null;
       try {
-        msg = JSON.parse(ev.data) as typeof msg;
+        msg = JSON.parse(ev.data) as Ctl;
       } catch {
         return;
       }
