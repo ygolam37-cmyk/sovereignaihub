@@ -9,7 +9,21 @@
 
 import { measureDevice, type DeviceCaps } from "./device-caps";
 import { getShard, hasShard, putShard, listHeld, quotaInfo, cacheBudget } from "./chunk-store";
-import { sha256Hex } from "./shard";
+import { hashOffThread } from "./hash-pool";
+import {
+  startPressureMonitor,
+  currentPressure,
+  throughputFactor,
+  yieldToUI,
+  whenIdle,
+} from "./scheduler";
+import {
+  startWebrtcMesh,
+  stopWebrtcMesh,
+  requestShard as requestShardFromWebrtc,
+  subscribeMeshPeers,
+  connectedPeerCount,
+} from "./webrtc-mesh";
 import { getShardPlan, reportReplicas } from "./p2p.functions";
 import { registerPeer } from "./registry.functions";
 
@@ -35,6 +49,8 @@ export type MeshState = {
   budget: number;
   lastSync: number | null;
   liveNodes: number;
+  webrtcPeers: number;
+  throttle: number;
   message: string;
 };
 
@@ -55,6 +71,8 @@ const state: MeshState = {
   budget: 0,
   lastSync: null,
   liveNodes: 0,
+  webrtcPeers: 0,
+  throttle: 1,
   message: "idle",
 };
 
@@ -119,7 +137,17 @@ function openChannel() {
 }
 
 /** Ask the mesh for a shard first; falls back to the seed store on timeout. */
-function fetchFromPeers(sha: string, timeoutMs = 1200): Promise<ArrayBuffer | null> {
+async function fetchFromPeers(sha: string, timeoutMs = 1200): Promise<ArrayBuffer | null> {
+  // 1. Real cross-network peers (any Wi-Fi / cellular / NAT).
+  if (connectedPeerCount() > 0) {
+    const remote = await requestShardFromWebrtc(sha, Math.max(timeoutMs, 2500));
+    if (remote) return remote;
+  }
+  // 2. Same-origin tabs on this device.
+  return fetchFromLocalTabs(sha, timeoutMs);
+}
+
+function fetchFromLocalTabs(sha: string, timeoutMs: number): Promise<ArrayBuffer | null> {
   if (!channel) return Promise.resolve(null);
   const rid = crypto.randomUUID();
   return new Promise((resolve) => {
@@ -155,6 +183,9 @@ async function fetchFromSeed(url: string, attempts = 3): Promise<ArrayBuffer | n
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let syncing = false;
+let unsubPeers: (() => void) | null = null;
+let onOnline: (() => void) | null = null;
+let onVisible: (() => void) | null = null;
 
 async function refreshStorage() {
   const [{ usage, quota }, budget, held] = await Promise.all([quotaInfo(), cacheBudget(), listHeld()]);
@@ -213,8 +244,23 @@ async function syncOnce() {
       message: plan.assignments.length ? "downloading shards" : "in sync",
     });
 
+    const factor = throughputFactor(caps.score, caps.charging, caps.batteryLevel);
+    emit({ throttle: factor });
+    if (factor === 0) {
+      emit({ message: "paused — protecting battery/thermals" });
+      return;
+    }
+    // Heavier devices pull more per pass; stressed devices barely sip.
+    const perPass = Math.max(1, Math.round(plan.assignments.length * factor));
     const stored: string[] = [];
+    let pulled = 0;
     for (const a of plan.assignments) {
+      if (pulled >= perPass) break;
+      await yieldToUI();
+      if (currentPressure() === "critical") {
+        emit({ message: "throttled — device under load" });
+        break;
+      }
       if (await hasShard(a.sha256)) {
         stored.push(a.shardId);
         continue;
@@ -230,7 +276,7 @@ async function syncOnce() {
       }
 
       // Integrity gate — a shard that does not hash to its address is dropped.
-      const hex = await sha256Hex(bytes);
+      const hex = await hashOffThread(bytes);
       if (hex !== a.sha256) {
         emit({ failures: state.failures + 1, message: `integrity mismatch on #${a.idx}` });
         continue;
@@ -253,6 +299,7 @@ async function syncOnce() {
         fromSeed: viaPeer ? state.fromSeed : state.fromSeed + 1,
       });
       stored.push(a.shardId);
+      pulled++;
     }
 
     if (stored.length) {
@@ -278,6 +325,11 @@ export async function startMesh(): Promise<void> {
   if (typeof window === "undefined" || state.running) return;
   emit({ running: true, nodeKey: nodeKey(), message: "joining mesh" });
   openChannel();
+  startPressureMonitor();
+  unsubPeers = subscribeMeshPeers((n) => emit({ webrtcPeers: n }));
+  // Signaling + NAT traversal run in the background; a failure here only
+  // degrades to seed fetches, it never blocks the mesh from starting.
+  void startWebrtcMesh(state.nodeKey, (sha) => getShard(sha)).catch(() => undefined);
 
   try {
     await navigator.storage?.persist?.();
@@ -285,6 +337,7 @@ export async function startMesh(): Promise<void> {
     /* permission denied — LRU eviction handles it */
   }
 
+  await whenIdle(1500);
   await syncOnce();
 
   const beat = async () => heartbeat(await measureDevice());
@@ -292,10 +345,12 @@ export async function startMesh(): Promise<void> {
   syncTimer = setInterval(() => void syncOnce(), SYNC_MS);
 
   // Sudden disconnect handling: resync as soon as the tab comes back.
-  window.addEventListener("online", () => void syncOnce());
-  document.addEventListener("visibilitychange", () => {
+  onOnline = () => void syncOnce();
+  onVisible = () => {
     if (document.visibilityState === "visible") void syncOnce();
-  });
+  };
+  window.addEventListener("online", onOnline);
+  document.addEventListener("visibilitychange", onVisible);
 }
 
 export function stopMesh(): void {
@@ -305,7 +360,18 @@ export function stopMesh(): void {
   syncTimer = null;
   channel?.close();
   channel = null;
-  emit({ running: false, message: "stopped" });
+  for (const [rid, resolve] of pending) {
+    pending.delete(rid);
+    resolve(new ArrayBuffer(0));
+  }
+  unsubPeers?.();
+  unsubPeers = null;
+  if (onOnline) window.removeEventListener("online", onOnline);
+  if (onVisible) document.removeEventListener("visibilitychange", onVisible);
+  onOnline = null;
+  onVisible = null;
+  stopWebrtcMesh();
+  emit({ running: false, webrtcPeers: 0, message: "stopped" });
 }
 
 export function forceSync(): void {

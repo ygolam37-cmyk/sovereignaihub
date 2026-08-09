@@ -9,6 +9,20 @@ export function NetworkIndicator() {
   const fetchStatus = useServerFn(networkStatus);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [strength, setStrength] = useState(0);
+  const [peers, setPeers] = useState(0);
+
+  useEffect(() => {
+    let unsub: (() => void) | null = null;
+    let stopped = false;
+    import("@/lib/webrtc-mesh").then((m) => {
+      if (stopped) return;
+      unsub = m.subscribeMeshPeers(setPeers);
+    });
+    return () => {
+      stopped = true;
+      unsub?.();
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -46,6 +60,10 @@ export function NetworkIndicator() {
           </span>
         ))}
       </div>
+      <span className="flex items-center gap-1 font-mono text-gold">
+        <span className="text-muted-foreground">peers</span>
+        {peers}
+      </span>
       <span className="ml-1 font-mono text-gold">{strength}%</span>
     </div>
   );

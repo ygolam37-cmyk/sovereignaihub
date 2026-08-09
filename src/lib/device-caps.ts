@@ -23,7 +23,7 @@ function microBench(): number {
   const start = performance.now();
   let ops = 0;
   let acc = 0;
-  while (performance.now() - start < 12) {
+  while (performance.now() - start < 6) {
     for (let i = 0; i < 20_000; i++) acc += Math.sqrt(i % 97) * 1.000001;
     ops += 20_000;
   }
