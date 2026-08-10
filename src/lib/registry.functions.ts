@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireGate } from "./gate-middleware";
 
 const PeerInput = z.object({
   nodeKey: z.string().trim().min(8).max(128),
@@ -14,6 +15,7 @@ const PeerInput = z.object({
 
 /** Heartbeat + capability publication for a browser peer node. */
 export const registerPeer = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => PeerInput.parse(d))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -37,7 +39,9 @@ export const registerPeer = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const listPeerNodes = createServerFn({ method: "GET" }).handler(async () => {
+export const listPeerNodes = createServerFn({ method: "GET" })
+  .middleware([requireGate])
+  .handler(async () => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const cutoff = new Date(Date.now() - 90_000).toISOString();
   const { data, error } = await supabaseAdmin

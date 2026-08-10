@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireGate } from "./gate-middleware";
 
 // Native P2P model distribution control plane.
 // No third-party AI provider is involved anywhere in this file: it only
@@ -38,6 +39,7 @@ const PublishInput = z.object({
 });
 
 export const publishModel = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => PublishInput.parse(d))
   .handler(async ({ data }) => {
     const db = await admin();
@@ -138,6 +140,7 @@ async function seededSizes(
 
 /** Which shards still need (re)seeding, without hashing anything. */
 export const inspectModel = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => IdInput.parse(d))
   .handler(async ({ data }) => {
     const db = await admin();
@@ -158,6 +161,7 @@ export const inspectModel = createServerFn({ method: "POST" })
 
 /** Fresh signed upload tickets so a partially seeded model can be repaired. */
 export const resealShards = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) =>
     IdInput.extend({ idxs: z.array(z.number().int().min(0)).min(1).max(4096) }).parse(d),
   )
@@ -176,6 +180,7 @@ export const resealShards = createServerFn({ method: "POST" })
   });
 
 export const verifyModel = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => IdInput.parse(d))
   .handler(async ({ data }) => {
     const db = await admin();
@@ -304,7 +309,9 @@ export const verifyModel = createServerFn({ method: "POST" })
 /* Listing                                                             */
 /* ------------------------------------------------------------------ */
 
-export const listNativeModels = createServerFn({ method: "GET" }).handler(async () => {
+export const listNativeModels = createServerFn({ method: "GET" })
+  .middleware([requireGate])
+  .handler(async () => {
   const db = await admin();
   const { data, error } = await db
     .from("native_models")
@@ -327,6 +334,7 @@ const PlanInput = z.object({
 });
 
 export const getShardPlan = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => PlanInput.parse(d))
   .handler(async ({ data }) => {
     const db = await admin();
@@ -432,6 +440,7 @@ const ReportInput = z.object({
 });
 
 export const reportReplicas = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => ReportInput.parse(d))
   .handler(async ({ data }) => {
     if (!data.shardIds.length) return { ok: true as const, stored: 0 };
@@ -456,6 +465,7 @@ const DropInput = z.object({
 });
 
 export const dropReplicas = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => DropInput.parse(d))
   .handler(async ({ data }) => {
     if (!data.shardIds.length) return { ok: true as const };
@@ -468,7 +478,9 @@ export const dropReplicas = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const meshStats = createServerFn({ method: "GET" }).handler(async () => {
+export const meshStats = createServerFn({ method: "GET" })
+  .middleware([requireGate])
+  .handler(async () => {
   const db = await admin();
   const cutoff = new Date(Date.now() - STALE_PEER_MS).toISOString();
 

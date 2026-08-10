@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { searchDuckDuckGo } from "./search.server";
+import { requireGate } from "./gate-middleware";
 
 const InputSchema = z.object({
   query: z.string().trim().min(1).max(500),
@@ -8,6 +9,7 @@ const InputSchema = z.object({
 });
 
 export const webSearch = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data }) => {
     const hits = await searchDuckDuckGo(data.query, data.limit ?? 5);
