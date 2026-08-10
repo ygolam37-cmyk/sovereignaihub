@@ -7,10 +7,11 @@ import { getRequestHeader } from "@tanstack/react-start/server";
  * access screen — client-side route guards are UX only, this is the boundary.
  */
 export const requireGate = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  const { readCookie, sessionValid } = await import("./gate.server");
+  const { readCookie, sessionValid, sessionSubject } = await import("./gate.server");
   const token = readCookie(getRequestHeader("cookie"));
-  if (!(await sessionValid(token))) {
+  if (!token || !(await sessionValid(token))) {
     throw new Response("Unauthorized", { status: 401 });
   }
-  return next();
+  return next({ context: { gateSubject: await sessionSubject(token) } });
 });
+
