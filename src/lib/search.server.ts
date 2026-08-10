@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Zero-API, multi-engine open-source search with raw RSS/HTML fallbacks.
 // No API keys. Rotates strategies until one returns hits.
 

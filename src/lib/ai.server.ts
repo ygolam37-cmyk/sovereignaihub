@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Sovereign inference orchestrator — fully native.
 // The only "provider" is this application's own deterministic engine plus the
 // open web. No API keys, no model hosting service, no external endpoints.

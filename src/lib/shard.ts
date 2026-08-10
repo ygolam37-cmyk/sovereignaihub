@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Native sharding primitives — isomorphic, zero external dependencies.
 // A model/binary is split into fixed-size shards; every shard is content
 // addressed by SHA-256, and the model itself by a Merkle-style root hash.

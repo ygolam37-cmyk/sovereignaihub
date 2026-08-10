@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Sovereign Native Engine — 100% self-hosted synthesis.
 // No Hugging Face, no third-party model API, no external inference provider.
 // Pure deterministic algorithms: tokenization, TF-IDF weighting, MMR-based

@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // IndexedDB shard cache with graceful quota handling + LRU eviction.
 
 const DB_NAME = "sovereign-mesh";

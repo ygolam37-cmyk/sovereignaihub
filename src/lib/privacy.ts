@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Pure privacy helpers — no runtime deps, safe to unit-test.
 // Used to strip personal identifiers BEFORE any model call and to
 // scrub identifiers OUT of any model response before it reaches the user.
