@@ -8,10 +8,13 @@ import { useEffect } from "react";
 export function PeerAutoConnect() {
   useEffect(() => {
     let stopped = false;
-    import("@/lib/mesh-engine").then(async (m) => {
+    void (async () => {
+      const { ensureGate } = await import("@/lib/gate-client");
+      await ensureGate();
+      const m = await import("@/lib/mesh-engine");
       if (stopped) return;
       if (!m.isMeshRunning()) await m.startMesh();
-    });
+    })();
     return () => {
       stopped = true;
     };
