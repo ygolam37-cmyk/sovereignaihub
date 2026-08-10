@@ -41,7 +41,7 @@ const PublishInput = z.object({
 export const publishModel = createServerFn({ method: "POST" })
   .middleware([requireGate])
   .inputValidator((d: unknown) => PublishInput.parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const db = await admin();
     const { data: model, error } = await db
       .from("native_models")
@@ -54,11 +54,13 @@ export const publishModel = createServerFn({ method: "POST" })
         merkle_root: data.merkleRoot,
         status: "verifying",
         submitted_by: data.submittedBy ?? null,
+        owner_key: context.gateSubject,
         notes: data.notes ?? null,
       })
       .select("id")
       .single();
     if (error || !model) return { ok: false as const, error: error?.message ?? "Insert failed" };
+
 
     const rows = data.shards.map((s) => ({
       model_id: model.id,
