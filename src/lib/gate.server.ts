@@ -91,6 +91,18 @@ export async function sessionValid(token: string | undefined | null): Promise<bo
   return eq(parts[3], await hmac(`s.${parts[1]}.${parts[2]}`));
 }
 
+/**
+ * Stable, opaque identifier for a validated gate session. Used to bind
+ * uploaded models to the session that published them, so one session can
+ * never repair, overwrite or re-verify another session's model.
+ * Call only after `sessionValid` returned true.
+ */
+export async function sessionSubject(token: string): Promise<string> {
+  const nonce = token.split(".")[1] ?? "";
+  return (await sha256Hex(`subject:${nonce}`)).slice(0, 32);
+}
+
+
 export function readCookie(header: string | null | undefined): string | undefined {
   if (!header) return undefined;
   for (const part of header.split(";")) {
