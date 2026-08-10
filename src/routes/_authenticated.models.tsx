@@ -6,7 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ArrowLeft, Cpu, HardDrive, UploadCloud, ShieldCheck, Network } from "lucide-react";
-import { publishModel, verifyModel, listNativeModels, meshStats } from "@/lib/p2p.functions";
+import {
+  publishModel,
+  verifyModel,
+  listNativeModels,
+  meshStats,
+  inspectModel,
+  resealShards,
+} from "@/lib/p2p.functions";
 import { planShards, sliceShard, DEFAULT_SHARD_SIZE } from "@/lib/shard";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeMesh, forceSync, type MeshState } from "@/lib/mesh-engine";
