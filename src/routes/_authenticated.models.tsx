@@ -64,6 +64,8 @@ function ModelsPage() {
   const doVerify = useServerFn(verifyModel);
   const doList = useServerFn(listNativeModels);
   const doStats = useServerFn(meshStats);
+  const doInspect = useServerFn(inspectModel);
+  const doReseal = useServerFn(resealShards);
 
   const [mesh, setMesh] = useState<MeshState | null>(null);
   const [models, setModels] = useState<ModelRow[]>([]);
@@ -71,6 +73,8 @@ function ModelsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const repairRef = useRef<HTMLInputElement>(null);
+  const repairTarget = useRef<ModelRow | null>(null);
   const [name, setName] = useState("");
 
   useEffect(() => subscribeMesh(setMesh), []);
@@ -86,6 +90,46 @@ function ModelsPage() {
     const t = setInterval(() => void refresh(), 15_000);
     return () => clearInterval(t);
   }, [refresh]);
+
+  /** Upload shards with bounded concurrency + retry/backoff so a single
+   *  flaky request can never leave a permanent hole in the model. */
+  const seedShards = useCallback(
+    async (
+      file: File,
+      bucket: string,
+      shardSize: number,
+      tickets: Array<{ idx: number; path: string; token: string }>,
+      label: string,
+    ) => {
+      let done = 0;
+      setProgress({ label, done: 0, total: tickets.length });
+      const queue = tickets.slice();
+      const worker = async () => {
+        for (;;) {
+          const ticket = queue.shift();
+          if (!ticket) return;
+          const blob = sliceShard(file, ticket.idx, shardSize);
+          let lastErr = "";
+          let ok = false;
+          for (let attempt = 0; attempt < 4 && !ok; attempt++) {
+            const { error } = await supabase.storage
+              .from(bucket)
+              .uploadToSignedUrl(ticket.path, ticket.token, blob, { upsert: true });
+            if (!error) ok = true;
+            else {
+              lastErr = error.message;
+              await new Promise((r) => setTimeout(r, 250 * 2 ** attempt));
+            }
+          }
+          if (!ok) throw new Error(`Shard ${ticket.idx}: ${lastErr}`);
+          done++;
+          setProgress({ label, done, total: tickets.length });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, tickets.length) }, worker));
+    },
+    [],
+  );
 
   const onUpload = async (file: File) => {
     setBusy("sharding");
@@ -115,19 +159,23 @@ function ModelsPage() {
       if (!pub.ok) throw new Error(pub.error);
 
       setBusy("seeding");
-      let done = 0;
-      for (const ticket of pub.tickets) {
-        const blob = sliceShard(file, ticket.idx, plan.shardSize);
-        const { error } = await supabase.storage
-          .from(pub.bucket)
-          .uploadToSignedUrl(ticket.path, ticket.token, blob, { upsert: true });
-        if (error) throw new Error(`Shard ${ticket.idx}: ${error.message}`);
-        done++;
-        setProgress({ label: "Seeding shards", done, total: pub.tickets.length });
-      }
+      await seedShards(file, pub.bucket, plan.shardSize, pub.tickets, "Seeding shards");
 
       setBusy("verifying");
-      const ver = await doVerify({ data: { modelId: pub.modelId } });
+      let ver = await doVerify({ data: { modelId: pub.modelId } });
+
+      // Self-heal: finish any shard that still didn't land, then re-verify once.
+      if (!ver.ok && "repairable" in ver && ver.repairable) {
+        setBusy("repairing");
+        const insp = await doInspect({ data: { modelId: pub.modelId } });
+        if (insp.ok && insp.missing.length) {
+          const seal = await doReseal({ data: { modelId: pub.modelId, idxs: insp.missing } });
+          if (seal.ok) {
+            await seedShards(file, seal.bucket, plan.shardSize, seal.tickets, "Repairing shards");
+            ver = await doVerify({ data: { modelId: pub.modelId } });
+          }
+        }
+      }
       if (!ver.ok) throw new Error(ver.error);
       toast.success(`Verified & live — ${ver.checked}/${ver.total} shards, executing on the mesh.`);
       setName("");
@@ -141,6 +189,45 @@ function ModelsPage() {
       setProgress(null);
     }
   };
+
+  /** Repair an existing model: re-seed only the missing/corrupt shards from
+   *  the same source file, then re-verify to lift the quarantine. */
+  const onRepair = async (model: ModelRow, file: File) => {
+    setBusy("repairing");
+    try {
+      if (file.size !== model.size_bytes) {
+        throw new Error("That file doesn't match this model's size — pick the exact same file.");
+      }
+      setProgress({ label: "Hashing shards", done: 0, total: 1 });
+      const plan = await planShards(file, model.shard_size, (done, total) =>
+        setProgress({ label: "Hashing shards", done, total }),
+      );
+      if (model.merkle_root && plan.merkleRoot !== model.merkle_root) {
+        throw new Error("File contents differ from the registered model (Merkle root mismatch).");
+      }
+
+      const insp = await doInspect({ data: { modelId: model.id } });
+      const idxs = insp.ok && insp.missing.length ? insp.missing : plan.shards.map((s) => s.idx);
+      const seal = await doReseal({ data: { modelId: model.id, idxs } });
+      if (!seal.ok) throw new Error(seal.error);
+      await seedShards(file, seal.bucket, model.shard_size, seal.tickets, "Repairing shards");
+
+      setBusy("verifying");
+      const ver = await doVerify({ data: { modelId: model.id } });
+      if (!ver.ok) throw new Error(ver.error);
+      toast.success(`Repaired — ${ver.checked}/${ver.total} shards verified, model is live again.`);
+      forceSync();
+      await refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Repair failed");
+    } finally {
+      setBusy(null);
+      setProgress(null);
+      if (repairRef.current) repairRef.current.value = "";
+      repairTarget.current = null;
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-background">
