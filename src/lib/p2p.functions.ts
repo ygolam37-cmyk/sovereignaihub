@@ -112,6 +112,69 @@ async function merkleRoot(hashes: string[]): Promise<string> {
   return level[0];
 }
 
+/** List every object actually present in storage for a model → idx -> size. */
+async function seededSizes(
+  db: Awaited<ReturnType<typeof admin>>,
+  modelId: string,
+): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const { data: objs, error } = await db.storage
+      .from(BUCKET)
+      .list(modelId, { limit: page, offset });
+    if (error || !objs?.length) break;
+    for (const o of objs) {
+      const m = /^(\d+)\.bin$/.exec(o.name);
+      if (!m) continue;
+      const size =
+        (o as { metadata?: { size?: number } }).metadata?.size ?? 0;
+      out.set(Number(m[1]), size);
+    }
+    if (objs.length < page) break;
+  }
+  return out;
+}
+
+/** Which shards still need (re)seeding, without hashing anything. */
+export const inspectModel = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => IdInput.parse(d))
+  .handler(async ({ data }) => {
+    const db = await admin();
+    const { data: shards } = await db
+      .from("model_shards")
+      .select("idx,size_bytes")
+      .eq("model_id", data.modelId)
+      .order("idx");
+    if (!shards?.length) return { ok: false as const, error: "No shards registered" };
+    const present = await seededSizes(db, data.modelId);
+    const missing: number[] = [];
+    for (const s of shards) {
+      const size = present.get(s.idx);
+      if (size === undefined || (size > 0 && size !== s.size_bytes)) missing.push(s.idx);
+    }
+    return { ok: true as const, total: shards.length, seeded: shards.length - missing.length, missing };
+  });
+
+/** Fresh signed upload tickets so a partially seeded model can be repaired. */
+export const resealShards = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    IdInput.extend({ idxs: z.array(z.number().int().min(0)).min(1).max(4096) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const db = await admin();
+    const tickets: Array<{ idx: number; path: string; token: string }> = [];
+    for (const idx of data.idxs) {
+      const path = `${data.modelId}/${idx}.bin`;
+      const { data: signed, error } = await db.storage
+        .from(BUCKET)
+        .createSignedUploadUrl(path, { upsert: true });
+      if (error || !signed) return { ok: false as const, error: error?.message ?? "Sign failed" };
+      tickets.push({ idx, path, token: signed.token });
+    }
+    return { ok: true as const, bucket: BUCKET, tickets };
+  });
+
 export const verifyModel = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => IdInput.parse(d))
   .handler(async ({ data }) => {
@@ -130,41 +193,97 @@ export const verifyModel = createServerFn({ method: "POST" })
       .order("idx");
     if (!shards?.length) return { ok: false as const, error: "No shards registered" };
 
-    // Full byte verification up to 64 MiB, deterministic sampling above that.
+    const now = new Date().toISOString();
+
+    // Step 1 — cheap presence pass. A shard that was never seeded is NOT
+    // corrupt, so it must never trigger quarantine; it just needs re-upload.
+    const present = await seededSizes(db, data.modelId);
+    const missing = shards
+      .filter((s) => {
+        const size = present.get(s.idx);
+        return size === undefined || (size > 0 && size !== s.size_bytes);
+      })
+      .map((s) => s.idx);
+
+    if (missing.length) {
+      await db
+        .from("native_models")
+        .update({
+          status: "incomplete",
+          verified_at: now,
+          notes: `Seeding incomplete — ${missing.length}/${shards.length} shard(s) missing. Use Repair to finish seeding.`,
+        })
+        .eq("id", data.modelId);
+      return {
+        ok: false as const,
+        error: `${missing.length} shard(s) not seeded yet — run Repair to finish the upload.`,
+        missing: missing.slice(0, 32),
+        repairable: true as const,
+      };
+    }
+
+    // Step 2 — byte verification. Full up to 64 MiB, deterministic sampling above.
     const budget = 64 * 1024 * 1024;
     const full = (model.size_bytes ?? 0) <= budget;
     const step = full ? 1 : Math.ceil(shards.length / 48);
-    const failed: number[] = [];
+    const corrupt: number[] = [];
+    const unreadable: number[] = [];
     let checked = 0;
 
     for (let i = 0; i < shards.length; i += step) {
       const s = shards[i];
-      const { data: blob, error } = await db.storage.from(BUCKET).download(s.storage_path);
-      if (error || !blob) {
-        failed.push(s.idx);
+      let bytes: ArrayBuffer | null = null;
+      // Transient storage hiccups must not look like corruption → retry.
+      for (let attempt = 0; attempt < 3 && !bytes; attempt++) {
+        const { data: blob, error } = await db.storage.from(BUCKET).download(s.storage_path);
+        if (!error && blob) bytes = await blob.arrayBuffer();
+        else if (attempt < 2) await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+      }
+      if (!bytes) {
+        unreadable.push(s.idx);
         continue;
       }
-      const hex = await sha256Hex(new Uint8Array(await blob.arrayBuffer()));
       checked++;
-      if (hex !== s.sha256) failed.push(s.idx);
+      if ((await sha256Hex(new Uint8Array(bytes))) !== s.sha256) corrupt.push(s.idx);
     }
 
     const root = await merkleRoot(shards.map((s) => s.sha256));
     const rootOk = root === model.merkle_root;
-    const now = new Date().toISOString();
 
-    if (failed.length || !rootOk) {
+    if (corrupt.length || !rootOk) {
       await db
         .from("native_models")
         .update({
           status: "quarantined",
           verified_at: now,
           notes: rootOk
-            ? `Integrity failure on shard(s) ${failed.slice(0, 8).join(", ")}`
+            ? `Integrity failure on shard(s) ${corrupt.slice(0, 8).join(", ")} — re-upload the source file to repair.`
             : "Merkle root mismatch",
         })
         .eq("id", data.modelId);
-      return { ok: false as const, error: rootOk ? "Shard integrity failure" : "Merkle root mismatch" };
+      return {
+        ok: false as const,
+        error: rootOk ? "Shard integrity failure" : "Merkle root mismatch",
+        missing: corrupt.slice(0, 32),
+        repairable: rootOk,
+      };
+    }
+
+    if (unreadable.length) {
+      await db
+        .from("native_models")
+        .update({
+          status: "incomplete",
+          verified_at: now,
+          notes: `${unreadable.length} shard(s) unreadable from storage — retry verification or repair.`,
+        })
+        .eq("id", data.modelId);
+      return {
+        ok: false as const,
+        error: `${unreadable.length} shard(s) could not be read — retry or repair.`,
+        missing: unreadable.slice(0, 32),
+        repairable: true as const,
+      };
     }
 
     await db
