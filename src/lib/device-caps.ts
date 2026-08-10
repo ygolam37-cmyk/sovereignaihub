@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Continuous device capability measurement — WebGPU, CPU, RAM, battery.
 // Produces a 0..100 strength score used for adaptive load balancing.
 

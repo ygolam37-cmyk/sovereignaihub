@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Cooperative scheduling + thermal/battery guard.
 // Everything the mesh does in the background yields to the UI thread and
 // backs off the moment the device shows stress.

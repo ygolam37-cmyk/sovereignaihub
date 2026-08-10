@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Native P2P mesh engine (client-side).
 // Responsibilities:
 //  1. measure this device continuously and publish its score

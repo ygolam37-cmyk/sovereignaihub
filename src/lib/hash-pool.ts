@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 // Small worker pool for SHA-256 verification. Keeps the main thread at 60fps
 // even while hundreds of shards are being hashed. Falls back to inline crypto
 // when Workers are unavailable (older mobile browsers, restricted contexts).

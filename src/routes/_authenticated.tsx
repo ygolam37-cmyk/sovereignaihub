@@ -1,3 +1,9 @@
+/*
+ * Sovereign AI Hub
+ * Copyright (c) 2026 Golam Yasin
+ * SPDX-License-Identifier: MIT
+ * Licensed under the MIT License. See the LICENSE file in the project root.
+ */
 import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { hasLocalAuth } from "@/lib/auth-context";
 import { PeerAutoConnect } from "@/components/PeerAutoConnect";
