@@ -377,7 +377,9 @@ function ModelsPage() {
                           ? "bg-gold/15 text-gold"
                           : m.status === "quarantined"
                             ? "bg-rose-500/15 text-rose-400"
-                            : "bg-muted text-muted-foreground"
+                            : m.status === "incomplete"
+                              ? "bg-amber-500/15 text-amber-400"
+                              : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {m.status}
@@ -388,24 +390,46 @@ function ModelsPage() {
                     {fmtBytes(m.shard_size)} · root {m.merkle_root?.slice(0, 12)}…
                   </div>
                   {m.notes && <div className="mt-1 text-xs text-muted-foreground/80">{m.notes}</div>}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2"
-                    disabled={!!busy}
-                    onClick={async () => {
-                      const r = await doVerify({ data: { modelId: m.id } });
-                      if (r.ok) toast.success(`Integrity OK — ${r.checked}/${r.total} shards`);
-                      else toast.error(r.error);
-                      await refresh();
-                    }}
-                  >
-                    Re-verify integrity
-                  </Button>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!!busy}
+                      onClick={async () => {
+                        const r = await doVerify({ data: { modelId: m.id } });
+                        if (r.ok) toast.success(`Integrity OK — ${r.checked}/${r.total} shards`);
+                        else toast.error(r.error);
+                        await refresh();
+                      }}
+                    >
+                      Re-verify integrity
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!!busy}
+                      onClick={() => {
+                        repairTarget.current = m;
+                        repairRef.current?.click();
+                      }}
+                    >
+                      Repair from source file
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
+          <input
+            ref={repairRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              const target = repairTarget.current;
+              if (f && target) void onRepair(target, f);
+            }}
+          />
         </section>
       </main>
     </div>
