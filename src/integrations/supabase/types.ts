@@ -135,6 +135,7 @@ export type Database = {
           merkle_root: string | null
           name: string
           notes: string | null
+          owner_key: string | null
           shard_count: number
           shard_size: number
           size_bytes: number
@@ -149,6 +150,7 @@ export type Database = {
           merkle_root?: string | null
           name: string
           notes?: string | null
+          owner_key?: string | null
           shard_count?: number
           shard_size?: number
           size_bytes?: number
@@ -163,6 +165,7 @@ export type Database = {
           merkle_root?: string | null
           name?: string
           notes?: string | null
+          owner_key?: string | null
           shard_count?: number
           shard_size?: number
           size_bytes?: number

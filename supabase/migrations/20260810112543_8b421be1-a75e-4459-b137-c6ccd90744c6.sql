@@ -1,0 +1,1 @@
+ALTER TABLE public.native_models ADD COLUMN IF NOT EXISTS owner_key text;
