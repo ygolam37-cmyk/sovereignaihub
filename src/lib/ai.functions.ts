@@ -4,6 +4,7 @@ import { askSovereignNative } from "./ai.server";
 import { searchDuckDuckGo, researchOpenSource, type SearchHit } from "./search.server";
 import { IDENTITY_RESPONSE, isIdentityQuery } from "./identity";
 import { reviewWorkerResponse, identityFirewall } from "./manager.server";
+import { requireGate } from "./gate-middleware";
 
 const InputSchema = z.object({
   prompt: z.string().trim().min(1).max(8000),
@@ -17,6 +18,7 @@ function shouldSearch(prompt: string): boolean {
 }
 
 export const askSovereign = createServerFn({ method: "POST" })
+  .middleware([requireGate])
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data }) => {
     // Deterministic identity/attribution guarantee.

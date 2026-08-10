@@ -11,6 +11,7 @@ import { askSovereign } from "@/lib/ai.functions";
 import { toast } from "sonner";
 import { Shield, Send, Sparkles, ExternalLink, Network } from "lucide-react";
 import { ExitGate } from "@/components/ExitGate";
+import { ensureGate } from "@/lib/gate-client";
 import { UniversalShareButton } from "@/components/UniversalShareButton";
 
 
@@ -50,6 +51,11 @@ function Dashboard() {
     setInput("");
     setBusy(true);
     try {
+      // Server-side gate session must exist before the backend will answer.
+      if (!(await ensureGate())) {
+        toast.error("Could not establish a secure session. Reload and try again.");
+        return;
+      }
       const res = await ask({ data: { prompt } });
       if (res.ok) {
         setMessages((m) => [

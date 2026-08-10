@@ -39,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       const restored = await loadSession();
+      if (restored) void (await import("@/lib/gate-client")).ensureGate();
       if (!cancelled) {
         setUser(restored);
         setLoading(false);
@@ -81,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     setUser(u);
     void saveSession(u).then(setPersist);
+    void import("@/lib/gate-client").then((m) => m.ensureGate());
     return { ok: true as const };
   }, []);
 
