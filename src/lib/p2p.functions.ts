@@ -140,12 +140,38 @@ async function seededSizes(
   return out;
 }
 
+/**
+ * Ownership check: mutating a model (repair, reseal, re-verify) is only allowed
+ * for the gate session that published it. Legacy rows without an owner are
+ * claimed by the first session that touches them.
+ */
+async function ownsModel(
+  db: Awaited<ReturnType<typeof admin>>,
+  modelId: string,
+  subject: string,
+): Promise<boolean> {
+  const { data: row } = await db
+    .from("native_models")
+    .select("id,owner_key")
+    .eq("id", modelId)
+    .maybeSingle();
+  if (!row) return false;
+  if (!row.owner_key) {
+    await db.from("native_models").update({ owner_key: subject }).eq("id", modelId);
+    return true;
+  }
+  return row.owner_key === subject;
+}
+
 /** Which shards still need (re)seeding, without hashing anything. */
 export const inspectModel = createServerFn({ method: "POST" })
   .middleware([requireGate])
   .inputValidator((d: unknown) => IdInput.parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const db = await admin();
+    if (!(await ownsModel(db, data.modelId, context.gateSubject))) {
+      return { ok: false as const, error: "Not found" };
+    }
     const { data: shards } = await db
       .from("model_shards")
       .select("idx,size_bytes")
@@ -167,10 +193,21 @@ export const resealShards = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     IdInput.extend({ idxs: z.array(z.number().int().min(0)).min(1).max(4096) }).parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const db = await admin();
+    if (!(await ownsModel(db, data.modelId, context.gateSubject))) {
+      return { ok: false as const, error: "Not found" };
+    }
+    // Only shard indexes that are actually registered for this model may be
+    // written — no arbitrary paths inside the bucket.
+    const { data: known } = await db
+      .from("model_shards")
+      .select("idx")
+      .eq("model_id", data.modelId);
+    const allowed = new Set((known ?? []).map((s) => s.idx));
     const tickets: Array<{ idx: number; path: string; token: string }> = [];
     for (const idx of data.idxs) {
+      if (!allowed.has(idx)) continue;
       const path = `${data.modelId}/${idx}.bin`;
       const { data: signed, error } = await db.storage
         .from(BUCKET)
@@ -178,20 +215,25 @@ export const resealShards = createServerFn({ method: "POST" })
       if (error || !signed) return { ok: false as const, error: error?.message ?? "Sign failed" };
       tickets.push({ idx, path, token: signed.token });
     }
+    if (!tickets.length) return { ok: false as const, error: "No repairable shards requested" };
     return { ok: true as const, bucket: BUCKET, tickets };
   });
 
 export const verifyModel = createServerFn({ method: "POST" })
   .middleware([requireGate])
   .inputValidator((d: unknown) => IdInput.parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const db = await admin();
+    if (!(await ownsModel(db, data.modelId, context.gateSubject))) {
+      return { ok: false as const, error: "Model not found" };
+    }
     const { data: model } = await db
       .from("native_models")
       .select("id,merkle_root,shard_count,size_bytes")
       .eq("id", data.modelId)
       .maybeSingle();
     if (!model) return { ok: false as const, error: "Model not found" };
+
 
     const { data: shards } = await db
       .from("model_shards")
